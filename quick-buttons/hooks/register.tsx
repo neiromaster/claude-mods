@@ -261,7 +261,6 @@ export const register: Register = (on, options) => {
     const ui = UI_STRINGS[paneLang] ?? UI_STRINGS.ru!
     const disabled = (await read($, disabledAtom)) ?? {}
     const catalog = await loadButtons($)
-    const disabled = await loadDisabled($)
 
     return (
       <Box flexDirection="column">
