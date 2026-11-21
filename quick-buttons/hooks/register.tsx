@@ -132,7 +132,15 @@ async function setDisabled($: EngineInterface, id: string, disabled: boolean): P
 
 const UI_STRINGS: Record<
   string,
-  { on: string; off: string; language: string; close: string; settings: string; hint: string }
+  {
+    on: string
+    off: string
+    language: string
+    close: string
+    settings: string
+    hint: string
+    buttons: string
+  }
 > = {
   ru: {
     on: 'вкл',
@@ -140,7 +148,8 @@ const UI_STRINGS: Record<
     language: 'язык',
     close: 'закрыть',
     settings: 'настройки',
-    hint: 'Esc — закрыть, Tab — переход между строками',
+    hint: 'Esc — закрыть · Tab/клик — переключить',
+    buttons: 'кнопки',
   },
   en: {
     on: 'on',
@@ -148,7 +157,8 @@ const UI_STRINGS: Record<
     language: 'language',
     close: 'close',
     settings: 'settings',
-    hint: 'Esc — close, Tab — move between rows',
+    hint: 'Esc — close · Tab/click — toggle',
+    buttons: 'buttons',
   },
 }
 
@@ -263,43 +273,62 @@ export const register: Register = (on, options) => {
     const catalog = await loadButtons($)
 
     return (
-      <Box flexDirection="column">
-        <Box paddingBottom={1}>
-          <Text bold>quick-buttons · {ui.settings}</Text>
+      <Box
+        flexDirection="column"
+        borderStyle="round"
+        borderColor="#4a9eff"
+        paddingX={1}
+        paddingTop={1}
+        paddingBottom={1}
+        rowGap={1}
+      >
+        <Text bold>⚙ quick-buttons · {ui.settings}</Text>
+
+        <Box flexDirection="column">
+          <Text dimColor bold>🌐 {ui.language.toUpperCase()}</Text>
+          <Select
+            key="lang"
+            label={ui.language}
+            value={paneLang}
+            options={[
+              { value: 'ru', label: 'русский' },
+              { value: 'en', label: 'english' },
+            ]}
+            onSelect={value => {
+              void (async () => {
+                await setConfig($, rowKey('language'), value)
+                // Перезаголовок открытой панели под новый язык.
+                await openSettings($, value)
+              })()
+            }}
+          />
         </Box>
-        <Select
-          key="lang"
-          label={ui.language}
-          value={paneLang}
-          options={[
-            { value: 'ru', label: 'русский' },
-            { value: 'en', label: 'english' },
-          ]}
-          onSelect={value => {
-            void (async () => {
-              await setConfig($, rowKey('language'), value)
-              // Перезаголовок открытой панели под новый язык.
-              await openSettings($, value)
-            })()
-          }}
-        />
-        {catalog.map(b => {
-          const isOn = disabled[b.id] !== true
-          const name = b.titles[paneLang] ?? b.title
-          return (
-            <Box key={b.id}>
-              <Text>{name}: </Text>
-              <Button
-                key={`${b.id}-toggle`}
-                label={isOn ? ui.on : ui.off}
-                onPress={() => {
-                  void setDisabled($, b.id, isOn)
-                }}
-              />
-            </Box>
-          )
-        })}
-        <Button key="close" label={ui.close} onPress={() => { void $.ui.close({ id: PANE }) }} />
+
+        <Box flexDirection="column">
+          <Text dimColor bold>🔘 {ui.buttons.toUpperCase()}</Text>
+          {catalog.map(b => {
+            const isOn = disabled[b.id] !== true
+            const name = b.titles[paneLang] ?? b.title
+            return (
+              <Box key={b.id} paddingLeft={1}>
+                <Button
+                  key={`${b.id}-toggle`}
+                  plain
+                  onPress={() => {
+                    void setDisabled($, b.id, isOn)
+                  }}
+                >
+                  <Text color={isOn ? '#22c55e' : '#6b7280'}>{isOn ? '●' : '○'}</Text>
+                  {' '}
+                  {name}
+                  <Text dimColor> · {isOn ? ui.on : ui.off}</Text>
+                </Button>
+              </Box>
+            )
+          })}
+        </Box>
+
+        <Button key="close" variant="primary" label={ui.close} onPress={() => { void $.ui.close({ id: PANE }) }} />
         <Text dimColor>{ui.hint}</Text>
       </Box>
     )
