@@ -30,16 +30,16 @@ the user's own words. Switch it in the `/config` menu
 
 ## Buttons
 
-Which buttons the band shows is configurable: set `quick-buttons.buttons` to a
-comma-separated list of catalog ids (`da`, `commit` — the catalog grows with
-releases). Empty or unset means all buttons; unknown ids are dropped and the
-order follows the catalog. If the list resolves to nothing, the band row is
-not drawn at all.
+Each catalog button has a toggle in the `/config` menu
+(`quick-buttons.show_da`, `quick-buttons.show_commit`, …). Default is on;
+unchecking hides the button, and if every toggle is off the band row is not
+drawn at all. A button added to the catalog ships its own toggle in the same
+release.
 
 ```json
 {
   "pluginConfigs": {
-    "quick-buttons": { "buttons": "da, commit" }
+    "quick-buttons": { "show_commit": false }
   }
 }
 ```

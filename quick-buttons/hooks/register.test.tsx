@@ -53,21 +53,25 @@ test('labels follow the configured language, unknown falls back to ru', () => {
   expect(labelsFor('de')).toEqual(labelsFor('ru'))
 })
 
-test('buttons: empty selection means the whole catalog', () => {
+test('buttons: no toggles set means the whole catalog', () => {
   const all = [
     { id: 'da', label: 'да' },
     { id: 'commit', label: 'коммить' },
   ]
   expect(buttonsFor('ru', undefined)).toEqual(all)
-  expect(buttonsFor('ru', '')).toEqual(all)
-  expect(buttonsFor('ru', '  ')).toEqual(all)
+  expect(buttonsFor('ru', {})).toEqual(all)
 })
 
-test('buttons: selection filters, unknown ids drop, order follows catalog', () => {
-  expect(buttonsFor('en', 'commit')).toEqual([{ id: 'commit', label: 'commit' }])
-  expect(buttonsFor('ru', ' commit , da ')).toEqual([
+test('buttons: a toggle set to false hides its button, true and unknown keys change nothing', () => {
+  expect(buttonsFor('ru', { da: false })).toEqual([{ id: 'commit', label: 'коммить' }])
+  expect(buttonsFor('en', { commit: false })).toEqual([{ id: 'da', label: 'yes' }])
+  expect(buttonsFor('ru', { da: true, commit: false })).toEqual([{ id: 'da', label: 'да' }])
+  expect(buttonsFor('ru', { da: true })).toEqual([
     { id: 'da', label: 'да' },
     { id: 'commit', label: 'коммить' },
   ])
-  expect(buttonsFor('ru', 'nope')).toEqual([])
+  expect(buttonsFor('ru', { nope: false })).toEqual([
+    { id: 'da', label: 'да' },
+    { id: 'commit', label: 'коммить' },
+  ])
 })

@@ -1,6 +1,6 @@
 {
   "name": "quick-buttons",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Кнопки «да» и «коммить» над полем ввода",
   "license": "MIT",
   "userConfig": {
@@ -11,11 +11,17 @@
       "options": ["ru", "en"],
       "default": "ru"
     },
-    "buttons": {
-      "title": "Buttons",
-      "description": "Comma-separated button ids to show (catalog: da, commit). Empty = all.",
-      "type": "string",
-      "default": ""
+    "show_da": {
+      "title": "Show «да» button",
+      "description": "Show the да/yes quick button in the band",
+      "type": "boolean",
+      "default": true
+    },
+    "show_commit": {
+      "title": "Show «коммить» button",
+      "description": "Show the коммить/commit quick button in the band",
+      "type": "boolean",
+      "default": true
     }
   }
 }
