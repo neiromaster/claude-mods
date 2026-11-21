@@ -151,8 +151,7 @@ export const register: Register = (on, options) => {
     const toggles = CATALOG.filter(b => b.kind === 'prompt')
 
     return (
-      <Box flexDirection="column" paddingX={1}>
-        <Text bold>quick-buttons · настройки</Text>
+      <Box flexDirection="column" paddingX={1} paddingTop={1}>
         <Select
           key="lang"
           label={ui.language}
@@ -162,7 +161,11 @@ export const register: Register = (on, options) => {
             { value: 'en', label: 'english' },
           ]}
           onSelect={value => {
-            void setConfig($, rowKey('language'), value)
+            void (async () => {
+              await setConfig($, rowKey('language'), value)
+              // Перезаголовок открытой панели под новый язык.
+              await openSettings($, value)
+            })()
           }}
         />
         {toggles.map(b => {
