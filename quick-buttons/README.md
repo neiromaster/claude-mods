@@ -36,11 +36,16 @@ it without touching code; changes apply on the next session or
 and autocomplete.
 
 Each entry: `id`, `title` (fallback label), `titles` (per-language labels,
-e.g. `{ "ru": "да" }`), and one of:
+e.g. `{ "ru": "да" }`), and how pressing submits:
 
-- `text` — prompt submitted as the user's own words (default: the label in
-  the active language);
+- `texts` — per-language prompt, e.g.
+  `{ "ru": "Покажи подсказку", "en": "Show the hint" }`;
+- `text` — a single prompt for every language;
 - `command` — slash command name, submitted as `/<command>`.
+
+Precedence: `texts[active language]` → `text` → the label in the active
+language; `command` overrides all of them. With none of them, pressing
+submits the label itself.
 
 `disabled: true` hides the button — the settings pane toggles this for you
 and writes the file back. The ⚙ settings button is built in; its visibility
