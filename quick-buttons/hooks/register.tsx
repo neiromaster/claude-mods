@@ -64,7 +64,6 @@ export function buttonsFor(
   const langKey = lang ?? 'ru'
   const result: HudButton[] = []
   for (const b of catalog) {
-    if (b.disabled) continue
     if (show?.[b.id] === false) continue
     const label = b.titles[langKey] ?? b.title
     const submit = b.submit ?? (b.command ? '/' + b.command : label)
@@ -97,7 +96,6 @@ function withSettings(catalog: CatalogEntry[]): CatalogEntry[] {
       kind: 'pane' as const,
       title: 'settings',
       titles: { ru: '⚙ настройки', en: '⚙ settings' },
-      disabled: false,
     },
   ]
 }
