@@ -295,7 +295,7 @@ export const register: Register = (on, options) => {
                 key={`${b.id}-toggle`}
                 label={isOn ? ui.on : ui.off}
                 onPress={() => {
-                  void setDisabled($, b.id, !isOn)
+                  void setDisabled($, b.id, isOn)
                 }}
               />
             </Box>
