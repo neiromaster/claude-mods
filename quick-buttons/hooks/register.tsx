@@ -56,11 +56,9 @@ export function buttonsFor(
 }
 
 // Топ-уровневые функции: движок отслеживает $ только через них или импорты.
-async function openSettings($: EngineInterface, lang: string): Promise<void> {
-  const ui = UI_STRINGS[lang] ?? UI_STRINGS.ru!
+async function openSettings($: EngineInterface): Promise<void> {
   const opened = await $.ui.open({
     id: PANE,
-    title: `quick-buttons · ${ui.settings}`,
     focus: true,
     closeOnEscape: true,
   })
@@ -92,29 +90,11 @@ export const register: Register = (on, options) => {
       name: 'buttons-config',
       description: 'Open the quick-buttons settings pane',
     })
-
-    // Перезагрузка мода (смена userConfig) оставляет открытую панель без
-    // title — новый экземпляр возвращает его на месте.
-    try {
-      const panes = await $.ui.panes()
-      if (panes.some(p => p.id === PANE)) {
-        const ui = UI_STRINGS[lang] ?? UI_STRINGS.ru!
-        await $.ui.open({
-          id: PANE,
-          title: `quick-buttons · ${ui.settings}`,
-          focus: true,
-          closeOnEscape: true,
-        })
-      }
-    } catch {
-      // panes() недоступен — не критично
-    }
-
     return next(e)
   })
 
   on('command.run', { command: 'buttons-config' }, async $ => {
-    await openSettings($, lang)
+    await openSettings($)
     return { text: 'quick-buttons: панель настроек открыта.' }
   })
 
@@ -142,7 +122,7 @@ export const register: Register = (on, options) => {
             onPress={
               b.kind === 'pane'
                 ? () => {
-                    void openSettings($, lang)
+                    void openSettings($)
                   }
                 : send(b.label)
             }
