@@ -10,7 +10,8 @@ export interface CatalogEntry {
   kind: 'prompt' | 'pane'
   title: string
   titles: Record<string, string>
-  submit?: string
+  text?: string
+  texts?: Record<string, string>
   command?: string
 }
 
@@ -48,7 +49,15 @@ export function normalizeCatalog(raw: unknown): CatalogEntry[] {
       kind: 'prompt',
       title,
       titles,
-      submit: typeof o.text === 'string' ? o.text : undefined,
+      text: typeof o.text === 'string' ? o.text : undefined,
+      texts:
+        typeof o.texts === 'object' && o.texts !== null
+          ? (Object.fromEntries(
+              Object.entries(o.texts as Record<string, unknown>).filter(
+                ([, v]) => typeof v === 'string',
+              ),
+            ) as Record<string, string>)
+          : undefined,
       command: typeof o.command === 'string' && o.command !== '' ? o.command : undefined,
     })
   }
@@ -57,6 +66,7 @@ export function normalizeCatalog(raw: unknown): CatalogEntry[] {
 
 // show — toggle-поля из настроек: show[id] === false прячет кнопку,
 // undefined/true и неизвестные ключи ничего не меняют. Порядок следует каталогу.
+// Отправляемый текст: texts[lang] → text → label активного языка; command сильнее всех.
 export function buttonsFor(
   catalog: CatalogEntry[],
   lang: string | undefined,
@@ -67,7 +77,9 @@ export function buttonsFor(
   for (const b of catalog) {
     if (show?.[b.id] === false) continue
     const label = b.titles[langKey] ?? b.title
-    const submit = b.submit ?? (b.command ? '/' + b.command : label)
+    const submit = b.command
+      ? '/' + b.command
+      : (b.texts?.[langKey] ?? b.text ?? label)
     result.push({ id: b.id, kind: b.kind, label, submit })
   }
   return result

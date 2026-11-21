@@ -28,7 +28,12 @@
           },
           "text": {
             "type": "string",
-            "description": "Prompt text submitted as the user's own words. Default: the label in the active language."
+            "description": "Single prompt text submitted as the user's own words, for every language."
+          },
+          "texts": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Per-language prompt text, e.g. { \"ru\": \"Покажи подсказку\", \"en\": \"Show the hint\" }. Overrides text; default is the label in the active language."
           },
           "command": {
             "type": "string",

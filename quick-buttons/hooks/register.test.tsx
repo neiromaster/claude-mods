@@ -1,10 +1,16 @@
 import { expect, test } from 'claude-code/testing'
 
-import { buttonsFor, normalizeCatalog, uiStringsFor, type CatalogEntry, type UiStrings } from './register'
+import { buttonsFor, normalizeCatalog, type CatalogEntry } from './register'
 
 const JSON_CATALOG = [
-  { id: 'da', title: 'yes', titles: { ru: 'да' }, text: 'yes' },
+  { id: 'da', title: 'yes', titles: { ru: 'да' } },
   { id: 'commit', title: 'commit', titles: { ru: 'коммить' } },
+  {
+    id: 'hint',
+    title: 'Hint',
+    titles: { ru: 'Подсказка' },
+    texts: { ru: 'Покажи подсказку', en: 'Show the hint' },
+  },
 ]
 
 const SETTINGS: CatalogEntry = {
@@ -21,7 +27,7 @@ test('normalizeCatalog keeps valid entries and drops broken ones', () => {
     { id: 'no-title' },
     'garbage',
     null,
-    { id: 'x', title: 'X', titles: { ru: 'икс' }, text: 'X!' },
+    { id: 'x', title: 'X', titles: { ru: 'икс' }, texts: { ru: 'икс!' } },
   ])
   expect(cat.map(b => b.id)).toEqual(['da', 'x'])
   expect(cat[1]).toEqual({
@@ -29,64 +35,56 @@ test('normalizeCatalog keeps valid entries and drops broken ones', () => {
     kind: 'prompt',
     title: 'X',
     titles: { ru: 'икс' },
-    submit: 'X!',
+    text: undefined,
+    texts: { ru: 'икс!' },
     command: undefined,
   })
 })
 
-test('buttonsFor resolves labels per language and submit per text/command/label', () => {
+test('buttonsFor resolves labels and submit per language: texts → text → label', () => {
   const cat = normalizeCatalog(JSON_CATALOG)
   expect(buttonsFor(cat, 'ru', {})).toEqual([
-    { id: 'da', kind: 'prompt', label: 'да', submit: 'yes' },
+    { id: 'da', kind: 'prompt', label: 'да', submit: 'да' },
     { id: 'commit', kind: 'prompt', label: 'коммить', submit: 'коммить' },
+    { id: 'hint', kind: 'prompt', label: 'Подсказка', submit: 'Покажи подсказку' },
   ])
   expect(buttonsFor(cat, 'en', {})).toEqual([
     { id: 'da', kind: 'prompt', label: 'yes', submit: 'yes' },
     { id: 'commit', kind: 'prompt', label: 'commit', submit: 'commit' },
+    { id: 'hint', kind: 'prompt', label: 'Hint', submit: 'Show the hint' },
   ])
 })
 
-test('buttonsFor: unknown language falls back to title', () => {
+test('buttonsFor: per-language texts win over single text; command wins over both', () => {
+  const cat = normalizeCatalog([
+    { id: 'a', title: 'A', texts: { ru: 'по-русски' }, text: 'fixed' },
+    { id: 'b', title: 'B', text: 'fixed', command: 'ctx' },
+  ])
+  expect(buttonsFor(cat, 'ru', {}).map(b => b.submit)).toEqual(['по-русски', '/ctx'])
+  expect(buttonsFor(cat, 'en', {}).map(b => b.submit)).toEqual(['fixed', '/ctx'])
+})
+
+test('buttonsFor: unknown language falls back to title and text', () => {
   const cat = normalizeCatalog(JSON_CATALOG)
-  expect(buttonsFor(cat, 'de', {})[0]).toEqual({ id: 'da', kind: 'prompt', label: 'yes', submit: 'yes' })
+  expect(buttonsFor(cat, 'de', {})[2]).toEqual({
+    id: 'hint',
+    kind: 'prompt',
+    label: 'Hint',
+    submit: 'Hint',
+  })
 })
 
 test('buttonsFor honours show toggles; hidden entries are filtered by the caller', () => {
   const cat = normalizeCatalog(JSON_CATALOG).concat([SETTINGS])
   expect(buttonsFor(cat, 'ru', { settings: false })).toEqual([
-    { id: 'da', kind: 'prompt', label: 'да', submit: 'yes' },
+    { id: 'da', kind: 'prompt', label: 'да', submit: 'да' },
     { id: 'commit', kind: 'prompt', label: 'коммить', submit: 'коммить' },
+    { id: 'hint', kind: 'prompt', label: 'Подсказка', submit: 'Покажи подсказку' },
   ])
   // Выключенные через $.store кнопки вызывающий код фильтрует до buttonsFor:
   expect(buttonsFor(cat.filter(b => b.id !== 'settings'), 'ru', {}).map(b => b.id)).toEqual([
     'da',
     'commit',
+    'hint',
   ])
-})
-
-test('uiStringsFor: built-in ru/en without a locale file', () => {
-  expect(uiStringsFor(undefined, 'ru')).toMatchObject({ on: 'вкл', off: 'выкл', label: 'Русский' })
-  expect(uiStringsFor(undefined, 'en')).toMatchObject({ on: 'on', off: 'off', label: 'English' })
-})
-
-test('uiStringsFor: locale file overrides fields and adds languages', () => {
-  const loaded = {
-    en: { on: 'ON', label: 'English (UK)' },
-    es: { on: 'sí', off: 'no', label: 'Español', settings: 'ajustes' },
-  }
-  const en = uiStringsFor(loaded as Record<string, Partial<UiStrings>>, 'en')
-  expect(en.on).toBe('ON')
-  expect(en.off).toBe('off')
-  expect(en.label).toBe('English (UK)')
-
-  const es = uiStringsFor(loaded as Record<string, Partial<UiStrings>>, 'es')
-  expect(es.on).toBe('sí')
-  expect(es.close).toBe('закрыть')
-  expect(es.label).toBe('Español')
-})
-
-test('uiStringsFor: unknown language with no locale file falls back gracefully', () => {
-  const de = uiStringsFor(undefined, 'de')
-  expect(de.label).toBe('de')
-  expect(de.on).toBe('вкл')
 })
