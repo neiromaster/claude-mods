@@ -66,6 +66,32 @@ apply instantly — the pane writes the same config rows the `/config` menu
 shows (via `$.config.set`), and the band redraws on the spot. Esc or the
 «закрыть» button closes the pane.
 
+## Locales (locales.json)
+
+All pane strings live in `locales.json` — per language, overridable without
+touching code (`locales.schema.json` alongside gives editors validation).
+Built-in `ru`/`en` strings are the fallback; a locale file overrides any
+field per language, and **adding a key adds a language to the picker** in the
+settings pane.
+
+```json
+{
+  "$schema": "./locales.schema.json",
+  "ru": { "label": "Русский" },
+  "en": { "label": "English" },
+  "es": {
+    "label": "Español",
+    "on": "sí",
+    "off": "no",
+    "settings": "ajustes",
+    "buttons": "botones"
+  }
+}
+```
+
+Fields: `label` (picker name), `on`/`off` (toggle state words), `language`,
+`close`, `settings`, `buttons` (section/labels), `hint` (bottom line).
+
 ## Setup
 
 Two options (language, visible buttons) — everything else works out of the

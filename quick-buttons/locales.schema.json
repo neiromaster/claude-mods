@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "quick-buttons UI locales",
+  "type": "object",
+  "description": "Per-language UI strings. Each key is a language code; fields override the built-in strings. Adding a key adds a language to the picker.",
+  "patternProperties": {
+    "^[a-zA-Z][a-zA-Z0-9_-]*$": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Language name shown in the language picker."
+        },
+        "on": {
+          "type": "string",
+          "description": "Visible-state word for button toggles."
+        },
+        "off": {
+          "type": "string",
+          "description": "Hidden-state word for button toggles."
+        },
+        "language": {
+          "type": "string",
+          "description": "Label of the language control."
+        },
+        "close": {
+          "type": "string",
+          "description": "Label of the close button."
+        },
+        "settings": {
+          "type": "string",
+          "description": "Word for the pane title and header."
+        },
+        "hint": {
+          "type": "string",
+          "description": "Bottom hint line in the pane."
+        },
+        "buttons": {
+          "type": "string",
+          "description": "Header of the buttons section."
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

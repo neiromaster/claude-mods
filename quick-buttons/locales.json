@@ -1,0 +1,9 @@
+{
+  "$schema": "./locales.schema.json",
+  "ru": {
+    "label": "Русский"
+  },
+  "en": {
+    "label": "English"
+  }
+}

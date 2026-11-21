@@ -3,11 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 const PANE = 'quick-buttons-settings'
 
-// Живое состояние видимости: рендеры, читающие атом, подписаны и
-// перерисовываются при записи сами (без $.ui.invalidate).
-const disabledAtom = atom({ plugin: 'quick-buttons', key: 'disabled' } as const, {})
-
-// ---- Каталог ----
+// ---- Каталог (buttons.json) ----
 
 export interface CatalogEntry {
   id: string
@@ -77,8 +73,6 @@ export function buttonsFor(
   return result
 }
 
-// ---- Файловые операции (кнопочный JSON) ----
-
 async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
   try {
     const raw = await $.fs.read(`${$.plugin.root}/buttons.json`)
@@ -105,6 +99,80 @@ function withSettings(catalog: CatalogEntry[]): CatalogEntry[] {
   ]
 }
 
+// ---- Локали (locales.json) ----
+
+export interface UiStrings {
+  on: string
+  off: string
+  language: string
+  close: string
+  settings: string
+  hint: string
+  buttons: string
+  label: string
+}
+
+const BUILTIN_UI: Record<string, UiStrings> = {
+  ru: {
+    on: 'вкл',
+    off: 'выкл',
+    language: 'язык',
+    close: 'закрыть',
+    settings: 'настройки',
+    hint: 'Esc — закрыть · Tab/клик — переключить',
+    buttons: 'кнопки',
+    label: 'Русский',
+  },
+  en: {
+    on: 'on',
+    off: 'off',
+    language: 'language',
+    close: 'close',
+    settings: 'settings',
+    hint: 'Esc — close · Tab/click — toggle',
+    buttons: 'buttons',
+    label: 'English',
+  },
+}
+
+// Мерж поверх встроенных строк: locales.json может переопределить любое
+// поле или добавить новый язык целиком.
+export function uiStringsFor(
+  loaded: Record<string, Partial<UiStrings>> | undefined,
+  lang: string | undefined,
+): UiStrings {
+  const key = lang ?? 'ru'
+  const base = BUILTIN_UI[key] ?? { ...BUILTIN_UI.ru!, label: key }
+  const over = (loaded?.[key] ?? {}) as Partial<UiStrings>
+  return { ...base, ...over, label: over.label ?? base.label }
+}
+
+async function loadLocales($: EngineInterface): Promise<Record<string, Partial<UiStrings>>> {
+  try {
+    const raw = await $.fs.read(`${$.plugin.root}/locales.json`)
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    const out: Record<string, Partial<UiStrings>> = {}
+    for (const [lg, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (lg.startsWith('$') || typeof v !== 'object' || v === null) continue
+      const rec: Partial<UiStrings> = {}
+      for (const [f, s] of Object.entries(v as Record<string, unknown>)) {
+        if (typeof s === 'string') rec[f as keyof UiStrings] = s
+      }
+      out[lg] = rec
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+// ---- Состояние видимости ----
+
+// Живое состояние видимости: рендеры, читающие атом, подписаны и
+// перерисовываются при записи сами (без $.ui.invalidate).
+const disabledAtom = atom({ plugin: 'quick-buttons', key: 'disabled' } as const, {})
+
 // Персистентность: $.store хранит map между сессиями (вне папки плагина —
 // переживает обновления), state — живая подписанная копия для рендеров.
 async function seedDisabledFromStore($: EngineInterface): Promise<void> {
@@ -128,58 +196,9 @@ async function setDisabled($: EngineInterface, id: string, disabled: boolean): P
   await $.store.set('disabled', next)
 }
 
-// ---- Локализация интерфейса панели ----
-
-const UI_STRINGS: Record<
-  string,
-  {
-    on: string
-    off: string
-    language: string
-    close: string
-    settings: string
-    hint: string
-    buttons: string
-  }
-> = {
-  ru: {
-    on: 'вкл',
-    off: 'выкл',
-    language: 'язык',
-    close: 'закрыть',
-    settings: 'настройки',
-    hint: 'Esc — закрыть · Tab/клик — переключить',
-    buttons: 'кнопки',
-  },
-  en: {
-    on: 'on',
-    off: 'off',
-    language: 'language',
-    close: 'close',
-    settings: 'settings',
-    hint: 'Esc — close · Tab/click — toggle',
-    buttons: 'buttons',
-  },
-}
-
-export function labelsFor(lang?: string): ButtonLabels {
-  return (lang && LABELS[lang]) || LABELS.ru!
-}
-
-const LABELS: Record<string, ButtonLabels> = {
-  ru: { da: 'да', commit: 'коммить' },
-  en: { da: 'yes', commit: 'commit' },
-}
-
-export interface ButtonLabels {
-  da: string
-  commit: string
-}
-
 // ---- Помощники верхнего уровня ($ трассируется только здесь) ----
 
-async function openSettings($: EngineInterface, lang: string): Promise<void> {
-  const ui = UI_STRINGS[lang] ?? UI_STRINGS.ru!
+async function openSettings($: EngineInterface, ui: UiStrings): Promise<void> {
   const opened = await $.ui.open({
     id: PANE,
     title: `quick-buttons · ${ui.settings}`,
@@ -219,11 +238,14 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'buttons-config' }, async $ => {
-    await openSettings($, lang)
+    const locales = await loadLocales($)
+    await openSettings($, uiStringsFor(locales, lang))
     return { text: 'quick-buttons: панель настроек открыта.' }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const locales = await loadLocales($)
+    const ui = uiStringsFor(locales, lang)
     const catalog = withSettings(await loadButtons($))
     const disabled = (await read($, disabledAtom)) ?? {}
     const visible = catalog.filter(b => disabled[b.id] !== true)
@@ -247,7 +269,7 @@ export const register: Register = (on, options) => {
             onPress={
               b.kind === 'pane'
                 ? () => {
-                    void openSettings($, lang)
+                    void openSettings($, ui)
                   }
                 : send(b.submit)
             }
@@ -267,10 +289,18 @@ export const register: Register = (on, options) => {
 
     const rawLang = rowValue('language')
     const paneLang = typeof rawLang === 'string' ? rawLang : 'ru'
-    const labels = labelsFor(paneLang)
-    const ui = UI_STRINGS[paneLang] ?? UI_STRINGS.ru!
     const disabled = (await read($, disabledAtom)) ?? {}
     const catalog = await loadButtons($)
+    const locales = await loadLocales($)
+    const ui = uiStringsFor(locales, paneLang)
+
+    const combined = { ...BUILTIN_UI, ...locales }
+    const langOptions = Object.keys(combined).map(code => ({
+      value: code,
+      label: uiStringsFor(locales, code).label,
+    }))
+
+    const toggles = catalog.filter(b => b.kind === 'prompt')
 
     return (
       <Box
@@ -290,15 +320,12 @@ export const register: Register = (on, options) => {
             key="lang"
             label={ui.language}
             value={paneLang}
-            options={[
-              { value: 'ru', label: 'русский' },
-              { value: 'en', label: 'english' },
-            ]}
+            options={langOptions}
             onSelect={value => {
               void (async () => {
                 await setConfig($, rowKey('language'), value)
                 // Перезаголовок открытой панели под новый язык.
-                await openSettings($, value)
+                await openSettings($, uiStringsFor(locales, value))
               })()
             }}
           />
@@ -306,7 +333,7 @@ export const register: Register = (on, options) => {
 
         <Box flexDirection="column">
           <Text dimColor bold>🔘 {ui.buttons.toUpperCase()}</Text>
-          {catalog.map(b => {
+          {toggles.map(b => {
             const isOn = disabled[b.id] !== true
             const name = b.titles[paneLang] ?? b.title
             return (

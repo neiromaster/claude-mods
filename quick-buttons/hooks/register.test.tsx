@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { buttonsFor, normalizeCatalog, type CatalogEntry } from './register'
+import { buttonsFor, normalizeCatalog, uiStringsFor, type CatalogEntry, type UiStrings } from './register'
 
 const JSON_CATALOG = [
   { id: 'da', title: 'yes', titles: { ru: 'да' }, text: 'yes' },
@@ -62,4 +62,31 @@ test('buttonsFor honours show toggles; hidden entries are filtered by the caller
     'da',
     'commit',
   ])
+})
+
+test('uiStringsFor: built-in ru/en without a locale file', () => {
+  expect(uiStringsFor(undefined, 'ru')).toMatchObject({ on: 'вкл', off: 'выкл', label: 'Русский' })
+  expect(uiStringsFor(undefined, 'en')).toMatchObject({ on: 'on', off: 'off', label: 'English' })
+})
+
+test('uiStringsFor: locale file overrides fields and adds languages', () => {
+  const loaded = {
+    en: { on: 'ON', label: 'English (UK)' },
+    es: { on: 'sí', off: 'no', label: 'Español', settings: 'ajustes' },
+  }
+  const en = uiStringsFor(loaded as Record<string, Partial<UiStrings>>, 'en')
+  expect(en.on).toBe('ON')
+  expect(en.off).toBe('off')
+  expect(en.label).toBe('English (UK)')
+
+  const es = uiStringsFor(loaded as Record<string, Partial<UiStrings>>, 'es')
+  expect(es.on).toBe('sí')
+  expect(es.close).toBe('закрыть')
+  expect(es.label).toBe('Español')
+})
+
+test('uiStringsFor: unknown language with no locale file falls back gracefully', () => {
+  const de = uiStringsFor(undefined, 'de')
+  expect(de.label).toBe('de')
+  expect(de.on).toBe('вкл')
 })
