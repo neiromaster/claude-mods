@@ -63,15 +63,21 @@ async function openSettings($: EngineInterface): Promise<void> {
   }
 }
 
-async function setConfig($: EngineInterface, key: string, value: string | boolean): Promise<void> {
-  await $.config.set({ key: `quick-buttons.${key}`, value })
+async function setConfig($: EngineInterface, rowKey: string, value: string | boolean): Promise<void> {
+  await $.config.set({ key: rowKey, value })
   $.ui.invalidate('ui.render')
 }
 
 export const register: Register = (on, options) => {
-  const opts = (options ?? {}) as {
-    language?: string
-    show?: Record<string, boolean | undefined>
+  const opts = (options ?? {}) as Record<string, unknown>
+
+  // userConfig приходит плоско: { language, show_da, show_commit, ... } —
+  // собираем map видимости из полей show_<id>.
+  const show: Record<string, boolean | undefined> = {}
+  for (const [k, v] of Object.entries(opts)) {
+    if (k.startsWith('show_')) {
+      show[k.slice(5)] = typeof v === 'boolean' ? v : undefined
+    }
   }
 
   on('session.start', async ($, e, next) => {
@@ -88,7 +94,10 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, ($, e, next) => {
-    const buttons = buttonsFor(opts.language, opts.show)
+    const buttons = buttonsFor(
+      typeof opts.language === 'string' ? opts.language : undefined,
+      show,
+    )
     if (buttons.length === 0) {
       return next(e)
     }
@@ -122,10 +131,12 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Select } = $.ui.resolve(e)
     const rows = await $.config.list()
-    const rowValue = (key: string): string | number | boolean | undefined =>
-      rows.find(r => r.key === key)?.value
+    // Ключ строки может быть квалифицирован именем маркетплейса — берём как есть.
+    const rowFor = (field: string) => rows.find(r => r.key.endsWith('.' + field))
+    const rowValue = (field: string): string | number | boolean | undefined => rowFor(field)?.value
+    const rowKey = (field: string): string => rowFor(field)?.key ?? `quick-buttons.${field}`
 
-    const rawLang = rowValue('quick-buttons.language')
+    const rawLang = rowValue('language')
     const lang = typeof rawLang === 'string' ? rawLang : 'ru'
     const labels = labelsFor(lang)
 
@@ -143,18 +154,18 @@ export const register: Register = (on, options) => {
             { value: 'en', label: 'english' },
           ]}
           onSelect={value => {
-            void setConfig($, 'language', value)
+            void setConfig($, rowKey('language'), value)
           }}
         />
         {toggles.map(b => {
-          const key = `show_${b.id}`
-          const isOn = rowValue(`quick-buttons.${key}`) !== false
+          const field = `show_${b.id}`
+          const isOn = rowValue(field) !== false
           return (
             <Button
               key={b.id}
               label={`${labels[b.id as keyof ButtonLabels] ?? b.id}: ${isOn ? 'вкл' : 'выкл'}`}
               onPress={() => {
-                void setConfig($, key, !isOn)
+                void setConfig($, rowKey(field), !isOn)
               }}
             />
           )
