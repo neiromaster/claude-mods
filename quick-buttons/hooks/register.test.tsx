@@ -5,7 +5,6 @@ import { buttonsFor, normalizeCatalog, type CatalogEntry } from './register'
 const JSON_CATALOG = [
   { id: 'da', title: 'yes', titles: { ru: 'да' }, text: 'yes' },
   { id: 'commit', title: 'commit', titles: { ru: 'коммить' } },
-  { id: 'ctx', title: 'Context', command: 'context', disabled: true },
 ]
 
 const SETTINGS: CatalogEntry = {
@@ -13,7 +12,6 @@ const SETTINGS: CatalogEntry = {
   kind: 'pane',
   title: 'settings',
   titles: { ru: '⚙ настройки', en: '⚙ settings' },
-  disabled: false,
 }
 
 test('normalizeCatalog keeps valid entries and drops broken ones', () => {
@@ -33,7 +31,6 @@ test('normalizeCatalog keeps valid entries and drops broken ones', () => {
     titles: { ru: 'икс' },
     submit: 'X!',
     command: undefined,
-    disabled: false,
   })
 })
 
@@ -54,17 +51,13 @@ test('buttonsFor: unknown language falls back to title', () => {
   expect(buttonsFor(cat, 'de', {})[0]).toEqual({ id: 'da', kind: 'prompt', label: 'yes', submit: 'yes' })
 })
 
-test('buttonsFor hides disabled entries and honours show toggles', () => {
+test('buttonsFor honours show toggles; hidden entries are filtered by the caller', () => {
   const cat = normalizeCatalog(JSON_CATALOG).concat([SETTINGS])
   expect(buttonsFor(cat, 'ru', { settings: false })).toEqual([
     { id: 'da', kind: 'prompt', label: 'да', submit: 'yes' },
     { id: 'commit', kind: 'prompt', label: 'коммить', submit: 'коммить' },
   ])
-  expect(buttonsFor(cat, 'ru', {})).toEqual([
-    { id: 'da', kind: 'prompt', label: 'да', submit: 'yes' },
-    { id: 'commit', kind: 'prompt', label: 'коммить', submit: 'коммить' },
-    { id: 'settings', kind: 'pane', label: '⚙ настройки', submit: '⚙ настройки' },
-  ])
-  const disabled = normalizeCatalog([{ id: 'da', title: 'yes', disabled: true }])
-  expect(buttonsFor(disabled, 'ru', {})).toEqual([])
+  // Выключенные через $.store кнопки вызывающий код фильтрует до buttonsFor:
+  const withoutCtx = cat.filter(b => b.id !== 'ctx')
+  expect(buttonsFor(withoutCtx, 'ru', {}).map(b => b.id)).toEqual(['da', 'commit'])
 })

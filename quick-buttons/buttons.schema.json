@@ -33,10 +33,6 @@
           "command": {
             "type": "string",
             "description": "Slash command name — pressing submits /<command> instead of text."
-          },
-          "disabled": {
-            "type": "boolean",
-            "description": "Hidden button (toggled from the settings pane)."
           }
         }
       }

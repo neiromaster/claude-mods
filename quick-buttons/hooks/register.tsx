@@ -11,7 +11,6 @@ export interface CatalogEntry {
   titles: Record<string, string>
   submit?: string
   command?: string
-  disabled: boolean
 }
 
 export interface HudButton {
@@ -50,7 +49,6 @@ export function normalizeCatalog(raw: unknown): CatalogEntry[] {
       titles,
       submit: typeof o.text === 'string' ? o.text : undefined,
       command: typeof o.command === 'string' && o.command !== '' ? o.command : undefined,
-      disabled: o.disabled === true,
     })
   }
   return out
@@ -104,21 +102,27 @@ function withSettings(catalog: CatalogEntry[]): CatalogEntry[] {
   ]
 }
 
-async function setDisabled($: EngineInterface, id: string, disabled: boolean): Promise<void> {
-  const path = `${$.plugin.root}/buttons.json`
-  let parsed: Record<string, unknown> = {}
+// Видимость кнопок живёт в $.store (движковый JSON вне папки плагина) —
+// переживает обновления плагина и не конфликтует с shipped-каталогом.
+async function loadDisabled($: EngineInterface): Promise<Record<string, boolean>> {
   try {
-    parsed = (JSON.parse(await $.fs.read(path)) ?? {}) as Record<string, unknown>
-  } catch {
-    parsed = {}
-  }
-  const buttons = Array.isArray(parsed.buttons) ? parsed.buttons : []
-  for (const item of buttons) {
-    if (typeof item === 'object' && item !== null && (item as Record<string, unknown>).id === id) {
-      ;(item as Record<string, unknown>).disabled = disabled
+    const v = await $.store.get('disabled')
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      const out: Record<string, boolean> = {}
+      for (const [k, b] of Object.entries(v as Record<string, unknown>)) {
+        if (typeof b === 'boolean') out[k] = b
+      }
+      return out
     }
+  } catch {
+    // стор недоступен — считаем всё включённым
   }
-  await $.fs.write(path, JSON.stringify({ ...parsed, buttons }, null, 2) + '\n')
+  return {}
+}
+
+async function setDisabled($: EngineInterface, id: string, disabled: boolean): Promise<void> {
+  const current = await loadDisabled($)
+  await $.store.set('disabled', { ...current, [id]: disabled })
   $.ui.invalidate('ui.render')
 }
 
@@ -208,7 +212,9 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const catalog = withSettings(await loadButtons($))
-    const buttons = buttonsFor(catalog, lang, show)
+    const disabled = await loadDisabled($)
+    const visible = catalog.filter(b => disabled[b.id] !== true)
+    const buttons = buttonsFor(visible, lang, show)
     if (buttons.length === 0) {
       return next(e)
     }
@@ -251,6 +257,7 @@ export const register: Register = (on, options) => {
     const labels = labelsFor(paneLang)
     const ui = UI_STRINGS[paneLang] ?? UI_STRINGS.ru!
     const catalog = await loadButtons($)
+    const disabled = await loadDisabled($)
 
     return (
       <Box flexDirection="column">
@@ -274,7 +281,7 @@ export const register: Register = (on, options) => {
           }}
         />
         {catalog.map(b => {
-          const isOn = b.disabled !== true
+          const isOn = disabled[b.id] !== true
           const name = b.titles[paneLang] ?? b.title
           return (
             <Box key={b.id}>
