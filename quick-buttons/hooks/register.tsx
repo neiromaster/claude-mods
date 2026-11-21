@@ -134,7 +134,7 @@ export const register: Register = (on, options) => {
 
   // Панель-подменю настроек: язык и тумблеры кнопок каталога.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button, Select } = $.ui.resolve(e)
+    const { Box, Text, Button, Select, Markdown } = $.ui.resolve(e)
     const rows = await $.config.list()
     // Ключ строки может быть квалифицирован именем маркетплейса — берём как есть.
     const rowFor = (field: string) => rows.find(r => r.key.endsWith('.' + field))
@@ -150,7 +150,7 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        <Text bold>quick-buttons · {ui.settings}</Text>
+        <Markdown key="title" text={`## quick-buttons · ${ui.settings}`} />
         <Select
           key="lang"
           label={ui.language}
