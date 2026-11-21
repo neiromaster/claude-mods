@@ -1,6 +1,11 @@
+import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 const PANE = 'quick-buttons-settings'
+
+// Живое состояние видимости: рендеры, читающие атом, подписаны и
+// перерисовываются при записи сами (без $.ui.invalidate).
+const disabledAtom = atom({ plugin: 'quick-buttons', key: 'disabled' } as const, {})
 
 // ---- Каталог ----
 
@@ -100,28 +105,27 @@ function withSettings(catalog: CatalogEntry[]): CatalogEntry[] {
   ]
 }
 
-// Видимость кнопок живёт в $.store (движковый JSON вне папки плагина) —
-// переживает обновления плагина и не конфликтует с shipped-каталогом.
-async function loadDisabled($: EngineInterface): Promise<Record<string, boolean>> {
+// Персистентность: $.store хранит map между сессиями (вне папки плагина —
+// переживает обновления), state — живая подписанная копия для рендеров.
+async function seedDisabledFromStore($: EngineInterface): Promise<void> {
   try {
-    const v = await $.store.get('disabled')
-    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      const out: Record<string, boolean> = {}
-      for (const [k, b] of Object.entries(v as Record<string, unknown>)) {
-        if (typeof b === 'boolean') out[k] = b
+    const stored = await $.store.get('disabled')
+    if (typeof stored === 'object' && stored !== null && !Array.isArray(stored)) {
+      const map: Record<string, boolean> = {}
+      for (const [k, b] of Object.entries(stored as Record<string, unknown>)) {
+        if (typeof b === 'boolean') map[k] = b
       }
-      return out
+      await update($, disabledAtom, () => map)
     }
   } catch {
-    // стор недоступен — считаем всё включённым
+    // стор недоступен — стартуем с пустого state
   }
-  return {}
 }
 
 async function setDisabled($: EngineInterface, id: string, disabled: boolean): Promise<void> {
-  const current = await loadDisabled($)
-  await $.store.set('disabled', { ...current, [id]: disabled })
-  $.ui.invalidate('ui.render')
+  const next = { ...((await read($, disabledAtom)) ?? {}), [id]: disabled }
+  await update($, disabledAtom, () => next)
+  await $.store.set('disabled', next)
 }
 
 // ---- Локализация интерфейса панели ----
@@ -200,6 +204,7 @@ export const register: Register = (on, options) => {
       name: 'buttons-config',
       description: 'Open the quick-buttons settings pane',
     })
+    await seedDisabledFromStore($)
     return next(e)
   })
 
@@ -210,7 +215,7 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const catalog = withSettings(await loadButtons($))
-    const disabled = await loadDisabled($)
+    const disabled = (await read($, disabledAtom)) ?? {}
     const visible = catalog.filter(b => disabled[b.id] !== true)
     const buttons = buttonsFor(visible, lang, show)
     if (buttons.length === 0) {
@@ -254,6 +259,7 @@ export const register: Register = (on, options) => {
     const paneLang = typeof rawLang === 'string' ? rawLang : 'ru'
     const labels = labelsFor(paneLang)
     const ui = UI_STRINGS[paneLang] ?? UI_STRINGS.ru!
+    const disabled = (await read($, disabledAtom)) ?? {}
     const catalog = await loadButtons($)
     const disabled = await loadDisabled($)
 
