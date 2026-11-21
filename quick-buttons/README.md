@@ -28,19 +28,33 @@ the user's own words. Switch it in the `/config` menu
 }
 ```
 
-## Buttons
+## Buttons (catalog: buttons.json)
 
-Each catalog button has a toggle in the `/config` menu
-(`quick-buttons.show_da`, `quick-buttons.show_commit`, …). Default is on;
-unchecking hides the button, and if every toggle is off the band row is not
-drawn at all. A button added to the catalog ships its own toggle in the same
-release.
+The button catalog lives in `buttons.json` next to the plugin manifest — edit
+it without touching code; changes apply on the next session or
+`/reload-plugins`. `buttons.schema.json` alongside gives editors validation
+and autocomplete.
+
+Each entry: `id`, `title` (fallback label), `titles` (per-language labels,
+e.g. `{ "ru": "да" }`), and one of:
+
+- `text` — prompt submitted as the user's own words (default: the label in
+  the active language);
+- `command` — slash command name, submitted as `/<command>`.
+
+`disabled: true` hides the button — the settings pane toggles this for you
+and writes the file back. The ⚙ settings button is built in; its visibility
+is the `show_settings` option in `/config`. If `buttons.json` is missing or
+broken, a built-in two-button catalog is used instead.
 
 ```json
 {
-  "pluginConfigs": {
-    "quick-buttons": { "show_commit": false }
-  }
+  "$schema": "./buttons.schema.json",
+  "buttons": [
+    { "id": "da", "title": "yes", "titles": { "ru": "да" }, "text": "yes" },
+    { "id": "commit", "title": "commit", "titles": { "ru": "коммить" } },
+    { "id": "review", "title": "review", "titles": { "ru": "ревью" }, "command": "review" }
+  ]
 }
 ```
 

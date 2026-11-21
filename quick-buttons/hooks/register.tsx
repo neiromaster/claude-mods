@@ -2,9 +2,152 @@ import type { EngineInterface, Register } from 'claude-code'
 
 const PANE = 'quick-buttons-settings'
 
-export interface ButtonLabels {
-  da: string
-  commit: string
+// ---- Каталог ----
+
+export interface CatalogEntry {
+  id: string
+  kind: 'prompt' | 'pane'
+  title: string
+  titles: Record<string, string>
+  submit?: string
+  command?: string
+  disabled: boolean
+}
+
+export interface HudButton {
+  id: string
+  kind: CatalogEntry['kind']
+  label: string
+  submit: string
+}
+
+// Фолбэк, если buttons.json отсутствует или битый.
+const BUILTIN_BUTTONS: unknown = [
+  { id: 'da', title: 'yes', titles: { ru: 'да' }, text: 'yes' },
+  { id: 'commit', title: 'commit', titles: { ru: 'коммить' } },
+]
+
+// Строгая нормализация: битые записи отбрасываются, лишние поля срезаются.
+export function normalizeCatalog(raw: unknown): CatalogEntry[] {
+  if (!Array.isArray(raw)) return []
+  const out: CatalogEntry[] = []
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue
+    const o = item as Record<string, unknown>
+    const id = typeof o.id === 'string' && o.id !== '' ? o.id : undefined
+    const title = typeof o.title === 'string' && o.title !== '' ? o.title : undefined
+    if (!id || !title) continue
+    const titles: Record<string, string> = {}
+    if (typeof o.titles === 'object' && o.titles !== null) {
+      for (const [lg, v] of Object.entries(o.titles as Record<string, unknown>)) {
+        if (typeof v === 'string') titles[lg] = v
+      }
+    }
+    out.push({
+      id,
+      kind: 'prompt',
+      title,
+      titles,
+      submit: typeof o.text === 'string' ? o.text : undefined,
+      command: typeof o.command === 'string' && o.command !== '' ? o.command : undefined,
+      disabled: o.disabled === true,
+    })
+  }
+  return out
+}
+
+// show — toggle-поля из настроек: show[id] === false прячет кнопку,
+// undefined/true и неизвестные ключи ничего не меняют. Порядок следует каталогу.
+export function buttonsFor(
+  catalog: CatalogEntry[],
+  lang: string | undefined,
+  show: Record<string, boolean | undefined> | undefined,
+): HudButton[] {
+  const langKey = lang ?? 'ru'
+  const result: HudButton[] = []
+  for (const b of catalog) {
+    if (b.disabled) continue
+    if (show?.[b.id] === false) continue
+    const label = b.titles[langKey] ?? b.title
+    const submit = b.submit ?? (b.command ? '/' + b.command : label)
+    result.push({ id: b.id, kind: b.kind, label, submit })
+  }
+  return result
+}
+
+// ---- Файловые операции (кнопочный JSON) ----
+
+async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
+  try {
+    const raw = await $.fs.read(`${$.plugin.root}/buttons.json`)
+    const parsed = JSON.parse(raw) as { buttons?: unknown }
+    const cat = normalizeCatalog(parsed.buttons)
+    if (cat.length > 0) return cat
+  } catch {
+    // файла нет или битый JSON — встроенный каталог
+  }
+  return normalizeCatalog(BUILTIN_BUTTONS)
+}
+
+// ⚙ — встроенная кнопка панели настроек, в JSON не живёт.
+function withSettings(catalog: CatalogEntry[]): CatalogEntry[] {
+  const filtered = catalog.filter(b => b.id !== 'settings')
+  return [
+    ...filtered,
+    {
+      id: 'settings',
+      kind: 'pane' as const,
+      title: 'settings',
+      titles: { ru: '⚙ настройки', en: '⚙ settings' },
+      disabled: false,
+    },
+  ]
+}
+
+async function setDisabled($: EngineInterface, id: string, disabled: boolean): Promise<void> {
+  const path = `${$.plugin.root}/buttons.json`
+  let parsed: Record<string, unknown> = {}
+  try {
+    parsed = (JSON.parse(await $.fs.read(path)) ?? {}) as Record<string, unknown>
+  } catch {
+    parsed = {}
+  }
+  const buttons = Array.isArray(parsed.buttons) ? parsed.buttons : []
+  for (const item of buttons) {
+    if (typeof item === 'object' && item !== null && (item as Record<string, unknown>).id === id) {
+      ;(item as Record<string, unknown>).disabled = disabled
+    }
+  }
+  await $.fs.write(path, JSON.stringify({ ...parsed, buttons }, null, 2) + '\n')
+  $.ui.invalidate('ui.render')
+}
+
+// ---- Локализация интерфейса панели ----
+
+const UI_STRINGS: Record<
+  string,
+  { on: string; off: string; language: string; close: string; settings: string; hint: string }
+> = {
+  ru: {
+    on: 'вкл',
+    off: 'выкл',
+    language: 'язык',
+    close: 'закрыть',
+    settings: 'настройки',
+    hint: 'Esc — закрыть, Tab — переход между строками',
+  },
+  en: {
+    on: 'on',
+    off: 'off',
+    language: 'language',
+    close: 'close',
+    settings: 'settings',
+    hint: 'Esc — close, Tab — move between rows',
+  },
+}
+
+export function labelsFor(lang?: string): ButtonLabels {
+  return (lang && LABELS[lang]) || LABELS.ru!
 }
 
 const LABELS: Record<string, ButtonLabels> = {
@@ -12,53 +155,18 @@ const LABELS: Record<string, ButtonLabels> = {
   en: { da: 'yes', commit: 'commit' },
 }
 
-export function labelsFor(lang?: string): ButtonLabels {
-  return (lang && LABELS[lang]) || LABELS.ru!
+export interface ButtonLabels {
+  da: string
+  commit: string
 }
 
-const UI_STRINGS: Record<string, { on: string; off: string; language: string; close: string; settings: string }> = {
-  ru: { on: 'вкл', off: 'выкл', language: 'язык', close: 'закрыть', settings: 'настройки' },
-  en: { on: 'on', off: 'off', language: 'language', close: 'close', settings: 'settings' },
-}
+// ---- Помощники верхнего уровня ($ трассируется только здесь) ----
 
-type CatalogButton = {
-  id: string
-  kind: 'prompt' | 'pane'
-  labels: Record<string, string>
-}
-
-// Каталог: prompt-кнопка отправляет свой текст, pane-кнопка открывает панель настроек.
-// Новая кнопка = запись здесь + булево поле show_<id> в манифесте.
-const CATALOG: CatalogButton[] = [
-  { id: 'da', kind: 'prompt', labels: { ru: 'да', en: 'yes' } },
-  { id: 'commit', kind: 'prompt', labels: { ru: 'коммить', en: 'commit' } },
-  { id: 'settings', kind: 'pane', labels: { ru: '⚙ настройки', en: '⚙ settings' } },
-]
-
-export interface HudButton {
-  id: string
-  kind: CatalogButton['kind']
-  label: string
-}
-
-// show — toggle-поля из настроек: show[id] === false прячет кнопку,
-// undefined/true и неизвестные ключи ничего не меняют. Порядок следует каталогу.
-export function buttonsFor(
-  lang: string | undefined,
-  show: Record<string, boolean | undefined> | undefined,
-): HudButton[] {
-  const langKey = lang ?? 'ru'
-  return CATALOG.filter(b => show?.[b.id] !== false).map(b => ({
-    id: b.id,
-    kind: b.kind,
-    label: b.labels[langKey] ?? b.labels.ru!,
-  }))
-}
-
-// Топ-уровневые функции: движок отслеживает $ только через них или импорты.
-async function openSettings($: EngineInterface): Promise<void> {
+async function openSettings($: EngineInterface, lang: string): Promise<void> {
+  const ui = UI_STRINGS[lang] ?? UI_STRINGS.ru!
   const opened = await $.ui.open({
     id: PANE,
+    title: `quick-buttons · ${ui.settings}`,
     focus: true,
     closeOnEscape: true,
   })
@@ -72,12 +180,12 @@ async function setConfig($: EngineInterface, rowKey: string, value: string | boo
   $.ui.invalidate('ui.render')
 }
 
+// ---- Регистрация ----
+
 export const register: Register = (on, options) => {
   const opts = (options ?? {}) as Record<string, unknown>
   const lang = typeof opts.language === 'string' ? opts.language : 'ru'
 
-  // userConfig приходит плоско: { language, show_da, show_commit, ... } —
-  // собираем map видимости из полей show_<id>.
   const show: Record<string, boolean | undefined> = {}
   for (const [k, v] of Object.entries(opts)) {
     if (k.startsWith('show_')) {
@@ -94,15 +202,13 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'buttons-config' }, async $ => {
-    await openSettings($)
+    await openSettings($, lang)
     return { text: 'quick-buttons: панель настроек открыта.' }
   })
 
-  on('ui.render', { component: 'AbovePrompt' }, ($, e, next) => {
-    const buttons = buttonsFor(
-      typeof opts.language === 'string' ? opts.language : undefined,
-      show,
-    )
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const catalog = withSettings(await loadButtons($))
+    const buttons = buttonsFor(catalog, lang, show)
     if (buttons.length === 0) {
       return next(e)
     }
@@ -122,9 +228,9 @@ export const register: Register = (on, options) => {
             onPress={
               b.kind === 'pane'
                 ? () => {
-                    void openSettings($)
+                    void openSettings($, lang)
                   }
-                : send(b.label)
+                : send(b.submit)
             }
           />
         ))}
@@ -136,7 +242,6 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Select } = $.ui.resolve(e)
     const rows = await $.config.list()
-    // Ключ строки может быть квалифицирован именем маркетплейса — берём как есть.
     const rowFor = (field: string) => rows.find(r => r.key.endsWith('.' + field))
     const rowValue = (field: string): unknown => rowFor(field)?.value
     const rowKey = (field: string): string => rowFor(field)?.key ?? `quick-buttons.${field}`
@@ -145,8 +250,7 @@ export const register: Register = (on, options) => {
     const paneLang = typeof rawLang === 'string' ? rawLang : 'ru'
     const labels = labelsFor(paneLang)
     const ui = UI_STRINGS[paneLang] ?? UI_STRINGS.ru!
-
-    const toggles = CATALOG.filter(b => b.kind === 'prompt')
+    const catalog = await loadButtons($)
 
     return (
       <Box flexDirection="column">
@@ -169,10 +273,9 @@ export const register: Register = (on, options) => {
             })()
           }}
         />
-        {toggles.map(b => {
-          const field = `show_${b.id}`
-          const isOn = rowValue(field) !== false
-          const name = labels[b.id as keyof ButtonLabels] ?? b.id
+        {catalog.map(b => {
+          const isOn = b.disabled !== true
+          const name = b.titles[paneLang] ?? b.title
           return (
             <Box key={b.id}>
               <Text>{name}: </Text>
@@ -180,14 +283,14 @@ export const register: Register = (on, options) => {
                 key={`${b.id}-toggle`}
                 label={isOn ? ui.on : ui.off}
                 onPress={() => {
-                  void setConfig($, rowKey(field), !isOn)
+                  void setDisabled($, b.id, !isOn)
                 }}
               />
             </Box>
           )
         })}
         <Button key="close" label={ui.close} onPress={() => { void $.ui.close({ id: PANE }) }} />
-        <Text dimColor>Esc — закрыть, Tab — переход между строками</Text>
+        <Text dimColor>{ui.hint}</Text>
       </Box>
     )
   })

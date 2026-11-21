@@ -1,87 +1,70 @@
 import { expect, test } from 'claude-code/testing'
 
-import { buttonsFor, labelsFor } from './register'
+import { buttonsFor, normalizeCatalog, type CatalogEntry } from './register'
 
-const BAND = {
-  plugin: 'quick-buttons',
-  component: 'AbovePrompt',
-  props: {
-    hasSurvey: false,
-    isCollapsed: false,
-    isWorking: false,
-    maxRows: 10,
-    bodyColumns: 80,
-    scroll: { offset: 0, bodyRows: 10 },
-    view: {},
-  },
-} as const
+const JSON_CATALOG = [
+  { id: 'da', title: 'yes', titles: { ru: 'да' }, text: 'yes' },
+  { id: 'commit', title: 'commit', titles: { ru: 'коммить' } },
+  { id: 'ctx', title: 'Context', command: 'context', disabled: true },
+]
 
-// Band рисуется только на terminal и desktop (типы: "Raised on the terminal
-// and desktop surfaces only").
-test('the band shows two buttons, on both surfaces', async ($, _on) => {
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({ ...BAND, surface })
-    expect(await ui.find({ key: 'da' })).toBeDefined()
-    expect(await ui.find({ key: 'commit' })).toBeDefined()
-    await ui.unmount()
-  }
-})
+const SETTINGS: CatalogEntry = {
+  id: 'settings',
+  kind: 'pane',
+  title: 'settings',
+  titles: { ru: '⚙ настройки', en: '⚙ settings' },
+  disabled: false,
+}
 
-test('pressing a button submits its text as the user', async ($, on) => {
-  const submitted: { text: string; asUser?: true }[] = []
-  // Под стендом в тестах ничего нет: он сам отвечает за движок —
-  // возвращает событие prompt.submit с тем же текстом.
-  on('prompt.submit', ($, e) => {
-    const asUser = 'asUser' in e.origin && e.origin.asUser === true ? true : undefined
-    submitted.push({ text: e.text, asUser })
-    return { text: e.text }
+test('normalizeCatalog keeps valid entries and drops broken ones', () => {
+  const cat = normalizeCatalog([
+    { id: 'da', title: 'yes' },
+    { title: 'no id' },
+    { id: 'no-title' },
+    'garbage',
+    null,
+    { id: 'x', title: 'X', titles: { ru: 'икс' }, text: 'X!' },
+  ])
+  expect(cat.map(b => b.id)).toEqual(['da', 'x'])
+  expect(cat[1]).toEqual({
+    id: 'x',
+    kind: 'prompt',
+    title: 'X',
+    titles: { ru: 'икс' },
+    submit: 'X!',
+    command: undefined,
+    disabled: false,
   })
-
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  await ui.press({ key: 'da' })
-  await ui.press({ key: 'commit' })
-
-  expect(submitted.map(p => p.text)).toEqual(['да', 'коммить'])
-  expect(submitted.every(p => p.asUser === true)).toBe(true)
-  await ui.unmount()
 })
 
-test('labels follow the configured language, unknown falls back to ru', () => {
-  expect(labelsFor('ru')).toEqual({ da: 'да', commit: 'коммить' })
-  expect(labelsFor('en')).toEqual({ da: 'yes', commit: 'commit' })
-  expect(labelsFor(undefined)).toEqual(labelsFor('ru'))
-  expect(labelsFor('de')).toEqual(labelsFor('ru'))
+test('buttonsFor resolves labels per language and submit per text/command/label', () => {
+  const cat = normalizeCatalog(JSON_CATALOG)
+  expect(buttonsFor(cat, 'ru', {})).toEqual([
+    { id: 'da', kind: 'prompt', label: 'да', submit: 'yes' },
+    { id: 'commit', kind: 'prompt', label: 'коммить', submit: 'коммить' },
+  ])
+  expect(buttonsFor(cat, 'en', {})).toEqual([
+    { id: 'da', kind: 'prompt', label: 'yes', submit: 'yes' },
+    { id: 'commit', kind: 'prompt', label: 'commit', submit: 'commit' },
+  ])
 })
 
-test('buttons: no toggles set means the whole catalog', () => {
-  const all = [
-    { id: 'da', kind: 'prompt', label: 'да' },
-    { id: 'commit', kind: 'prompt', label: 'коммить' },
-    { id: 'settings', kind: 'pane', label: '⚙ настройки' },
-  ]
-  expect(buttonsFor('ru', undefined)).toEqual(all)
-  expect(buttonsFor('ru', {})).toEqual(all)
+test('buttonsFor: unknown language falls back to title', () => {
+  const cat = normalizeCatalog(JSON_CATALOG)
+  expect(buttonsFor(cat, 'de', {})[0]).toEqual({ id: 'da', kind: 'prompt', label: 'yes', submit: 'yes' })
 })
 
-test('buttons: a toggle set to false hides its button, true and unknown keys change nothing', () => {
-  expect(buttonsFor('ru', { da: false })).toEqual([
-    { id: 'commit', kind: 'prompt', label: 'коммить' },
-    { id: 'settings', kind: 'pane', label: '⚙ настройки' },
+test('buttonsFor hides disabled entries and honours show toggles', () => {
+  const cat = normalizeCatalog(JSON_CATALOG).concat([SETTINGS])
+  expect(buttonsFor(cat, 'ru', { settings: false })).toEqual([
+    { id: 'da', kind: 'prompt', label: 'да', submit: 'yes' },
+    { id: 'commit', kind: 'prompt', label: 'коммить', submit: 'коммить' },
   ])
-  expect(buttonsFor('en', { commit: false, settings: false })).toEqual([
-    { id: 'da', kind: 'prompt', label: 'yes' },
+  expect(buttonsFor(cat, 'ru', {})).toEqual([
+    { id: 'da', kind: 'prompt', label: 'да', submit: 'yes' },
+    { id: 'commit', kind: 'prompt', label: 'коммить', submit: 'коммить' },
+    { id: 'settings', kind: 'pane', label: '⚙ настройки', submit: '⚙ настройки' },
   ])
-  expect(buttonsFor('ru', { da: true, commit: false, settings: false })).toEqual([
-    { id: 'da', kind: 'prompt', label: 'да' },
-  ])
-  expect(buttonsFor('ru', { da: true })).toEqual([
-    { id: 'da', kind: 'prompt', label: 'да' },
-    { id: 'commit', kind: 'prompt', label: 'коммить' },
-    { id: 'settings', kind: 'pane', label: '⚙ настройки' },
-  ])
-  expect(buttonsFor('ru', { nope: false })).toEqual([
-    { id: 'da', kind: 'prompt', label: 'да' },
-    { id: 'commit', kind: 'prompt', label: 'коммить' },
-    { id: 'settings', kind: 'pane', label: '⚙ настройки' },
-  ])
+  const disabled = normalizeCatalog([{ id: 'da', title: 'yes', disabled: true }])
+  expect(buttonsFor(disabled, 'ru', {})).toEqual([])
 })

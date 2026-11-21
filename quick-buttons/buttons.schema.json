@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "quick-buttons catalog",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "buttons": {
+      "type": "array",
+      "description": "Quick prompt buttons shown in the band above the prompt, in order.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$",
+            "description": "Stable identifier of the button."
+          },
+          "title": {
+            "type": "string",
+            "description": "Fallback label, used for languages missing from titles."
+          },
+          "titles": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Per-language labels, e.g. { \"ru\": \"да\", \"es\": \"sí\" }."
+          },
+          "text": {
+            "type": "string",
+            "description": "Prompt text submitted as the user's own words. Default: the label in the active language."
+          },
+          "command": {
+            "type": "string",
+            "description": "Slash command name — pressing submits /<command> instead of text."
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "Hidden button (toggled from the settings pane)."
+          }
+        }
+      }
+    }
+  },
+  "required": ["buttons"],
+  "additionalProperties": false
+}
