@@ -1,6 +1,6 @@
 {
   "name": "quick-buttons",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Кнопки «да» и «коммить» над полем ввода",
   "license": "MIT",
   "userConfig": {
@@ -20,6 +20,12 @@
     "show_commit": {
       "title": "Show «коммить» button",
       "description": "Show the коммить/commit quick button in the band",
+      "type": "boolean",
+      "default": true
+    },
+    "show_settings": {
+      "title": "Show ⚙ settings button",
+      "description": "Show the ⚙ button that opens the settings pane",
       "type": "boolean",
       "default": true
     }

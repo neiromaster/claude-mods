@@ -44,6 +44,14 @@ release.
 }
 ```
 
+## Settings pane
+
+The band's ⚙ button (or the `/buttons-config` command) opens a settings pane:
+a language picker and a per-button toggle for every catalog button. Changes
+apply instantly — the pane writes the same config rows the `/config` menu
+shows (via `$.config.set`), and the band redraws on the spot. Esc or the
+«закрыть» button closes the pane.
+
 ## Setup
 
 Two options (language, visible buttons) — everything else works out of the

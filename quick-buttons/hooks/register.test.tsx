@@ -55,23 +55,33 @@ test('labels follow the configured language, unknown falls back to ru', () => {
 
 test('buttons: no toggles set means the whole catalog', () => {
   const all = [
-    { id: 'da', label: 'да' },
-    { id: 'commit', label: 'коммить' },
+    { id: 'da', kind: 'prompt', label: 'да' },
+    { id: 'commit', kind: 'prompt', label: 'коммить' },
+    { id: 'settings', kind: 'pane', label: '⚙ настройки' },
   ]
   expect(buttonsFor('ru', undefined)).toEqual(all)
   expect(buttonsFor('ru', {})).toEqual(all)
 })
 
 test('buttons: a toggle set to false hides its button, true and unknown keys change nothing', () => {
-  expect(buttonsFor('ru', { da: false })).toEqual([{ id: 'commit', label: 'коммить' }])
-  expect(buttonsFor('en', { commit: false })).toEqual([{ id: 'da', label: 'yes' }])
-  expect(buttonsFor('ru', { da: true, commit: false })).toEqual([{ id: 'da', label: 'да' }])
+  expect(buttonsFor('ru', { da: false })).toEqual([
+    { id: 'commit', kind: 'prompt', label: 'коммить' },
+    { id: 'settings', kind: 'pane', label: '⚙ настройки' },
+  ])
+  expect(buttonsFor('en', { commit: false, settings: false })).toEqual([
+    { id: 'da', kind: 'prompt', label: 'yes' },
+  ])
+  expect(buttonsFor('ru', { da: true, commit: false, settings: false })).toEqual([
+    { id: 'da', kind: 'prompt', label: 'да' },
+  ])
   expect(buttonsFor('ru', { da: true })).toEqual([
-    { id: 'da', label: 'да' },
-    { id: 'commit', label: 'коммить' },
+    { id: 'da', kind: 'prompt', label: 'да' },
+    { id: 'commit', kind: 'prompt', label: 'коммить' },
+    { id: 'settings', kind: 'pane', label: '⚙ настройки' },
   ])
   expect(buttonsFor('ru', { nope: false })).toEqual([
-    { id: 'da', label: 'да' },
-    { id: 'commit', label: 'коммить' },
+    { id: 'da', kind: 'prompt', label: 'да' },
+    { id: 'commit', kind: 'prompt', label: 'коммить' },
+    { id: 'settings', kind: 'pane', label: '⚙ настройки' },
   ])
 })
