@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
+import { labelsFor } from './register'
+
 const BAND = {
   plugin: 'quick-buttons',
   component: 'AbovePrompt',
@@ -42,4 +44,11 @@ test('pressing a button submits its text as the user', async ($, on) => {
   expect(submitted.map(p => p.text)).toEqual(['да', 'коммить'])
   expect(submitted.every(p => p.asUser === true)).toBe(true)
   await ui.unmount()
+})
+
+test('labels follow the configured language, unknown falls back to ru', () => {
+  expect(labelsFor('ru')).toEqual({ da: 'да', commit: 'коммить' })
+  expect(labelsFor('en')).toEqual({ da: 'yes', commit: 'commit' })
+  expect(labelsFor(undefined)).toEqual(labelsFor('ru'))
+  expect(labelsFor('de')).toEqual(labelsFor('ru'))
 })

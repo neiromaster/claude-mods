@@ -1,6 +1,15 @@
 {
   "name": "quick-buttons",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Кнопки «да» и «коммить» над полем ввода",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "language": {
+      "title": "Language",
+      "description": "Button labels language (ru/en)",
+      "type": "string",
+      "options": ["ru", "en"],
+      "default": "ru"
+    }
+  }
 }
