@@ -16,6 +16,11 @@ export function labelsFor(lang?: string): ButtonLabels {
   return (lang && LABELS[lang]) || LABELS.ru!
 }
 
+const UI_STRINGS: Record<string, { on: string; off: string; language: string; close: string; settings: string }> = {
+  ru: { on: 'вкл', off: 'выкл', language: 'язык', close: 'закрыть', settings: 'настройки' },
+  en: { on: 'on', off: 'off', language: 'language', close: 'close', settings: 'settings' },
+}
+
 type CatalogButton = {
   id: string
   kind: 'prompt' | 'pane'
@@ -51,10 +56,11 @@ export function buttonsFor(
 }
 
 // Топ-уровневые функции: движок отслеживает $ только через них или импорты.
-async function openSettings($: EngineInterface): Promise<void> {
+async function openSettings($: EngineInterface, lang: string): Promise<void> {
+  const ui = UI_STRINGS[lang] ?? UI_STRINGS.ru!
   const opened = await $.ui.open({
     id: PANE,
-    title: 'quick-buttons · настройки',
+    title: `quick-buttons · ${ui.settings}`,
     focus: true,
     closeOnEscape: true,
   })
@@ -70,6 +76,7 @@ async function setConfig($: EngineInterface, rowKey: string, value: string | boo
 
 export const register: Register = (on, options) => {
   const opts = (options ?? {}) as Record<string, unknown>
+  const lang = typeof opts.language === 'string' ? opts.language : 'ru'
 
   // userConfig приходит плоско: { language, show_da, show_commit, ... } —
   // собираем map видимости из полей show_<id>.
@@ -89,7 +96,7 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'buttons-config' }, async $ => {
-    await openSettings($)
+    await openSettings($, lang)
     return { text: 'quick-buttons: панель настроек открыта.' }
   })
 
@@ -117,7 +124,7 @@ export const register: Register = (on, options) => {
             onPress={
               b.kind === 'pane'
                 ? () => {
-                    void openSettings($)
+                    void openSettings($, lang)
                   }
                 : send(b.label)
             }
@@ -137,8 +144,9 @@ export const register: Register = (on, options) => {
     const rowKey = (field: string): string => rowFor(field)?.key ?? `quick-buttons.${field}`
 
     const rawLang = rowValue('language')
-    const lang = typeof rawLang === 'string' ? rawLang : 'ru'
-    const labels = labelsFor(lang)
+    const paneLang = typeof rawLang === 'string' ? rawLang : 'ru'
+    const labels = labelsFor(paneLang)
+    const ui = UI_STRINGS[paneLang] ?? UI_STRINGS.ru!
 
     const toggles = CATALOG.filter(b => b.kind === 'prompt')
 
@@ -147,8 +155,8 @@ export const register: Register = (on, options) => {
         <Text bold>quick-buttons · настройки</Text>
         <Select
           key="lang"
-          label="язык"
-          value={lang}
+          label={ui.language}
+          value={paneLang}
           options={[
             { value: 'ru', label: 'русский' },
             { value: 'en', label: 'english' },
@@ -160,17 +168,21 @@ export const register: Register = (on, options) => {
         {toggles.map(b => {
           const field = `show_${b.id}`
           const isOn = rowValue(field) !== false
+          const name = labels[b.id as keyof ButtonLabels] ?? b.id
           return (
-            <Button
-              key={b.id}
-              label={`${labels[b.id as keyof ButtonLabels] ?? b.id}: ${isOn ? 'вкл' : 'выкл'}`}
-              onPress={() => {
-                void setConfig($, rowKey(field), !isOn)
-              }}
-            />
+            <Box key={b.id}>
+              <Text>{name}: </Text>
+              <Button
+                key={`${b.id}-toggle`}
+                label={isOn ? ui.on : ui.off}
+                onPress={() => {
+                  void setConfig($, rowKey(field), !isOn)
+                }}
+              />
+            </Box>
           )
         })}
-        <Button key="close" label="закрыть" onPress={() => { void $.ui.close({ id: PANE }) }} />
+        <Button key="close" label={ui.close} onPress={() => { void $.ui.close({ id: PANE }) }} />
         <Text dimColor>Esc — закрыть, Tab — переход между строками</Text>
       </Box>
     )
