@@ -92,6 +92,24 @@ export const register: Register = (on, options) => {
       name: 'buttons-config',
       description: 'Open the quick-buttons settings pane',
     })
+
+    // Перезагрузка мода (смена userConfig) оставляет открытую панель без
+    // title — новый экземпляр возвращает его на месте.
+    try {
+      const panes = await $.ui.panes()
+      if (panes.some(p => p.id === PANE)) {
+        const ui = UI_STRINGS[lang] ?? UI_STRINGS.ru!
+        await $.ui.open({
+          id: PANE,
+          title: `quick-buttons · ${ui.settings}`,
+          focus: true,
+          closeOnEscape: true,
+        })
+      }
+    } catch {
+      // panes() недоступен — не критично
+    }
+
     return next(e)
   })
 
@@ -140,7 +158,7 @@ export const register: Register = (on, options) => {
     const rows = await $.config.list()
     // Ключ строки может быть квалифицирован именем маркетплейса — берём как есть.
     const rowFor = (field: string) => rows.find(r => r.key.endsWith('.' + field))
-    const rowValue = (field: string): string | number | boolean | undefined => rowFor(field)?.value
+    const rowValue = (field: string): unknown => rowFor(field)?.value
     const rowKey = (field: string): string => rowFor(field)?.key ?? `quick-buttons.${field}`
 
     const rawLang = rowValue('language')
