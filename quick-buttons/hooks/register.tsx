@@ -104,7 +104,7 @@ function withSettings(catalog: CatalogEntry[]): CatalogEntry[] {
       id: 'settings',
       kind: 'pane' as const,
       title: 'settings',
-      titles: { ru: '⚙ настройки', en: '⚙ settings' },
+      titles: { ru: '⚙', en: '⚙' },
     },
   ]
 }
@@ -269,21 +269,29 @@ export const register: Register = (on, options) => {
       await $.prompt.submit({ text, asUser: true })
     }
 
+    // Prompt buttons on the left, the ⚙ settings button pressed to the right edge.
+    const width = typeof e.props.bodyColumns === 'number' ? e.props.bodyColumns : undefined
+    const left = buttons.filter(b => b.kind !== 'pane')
+    const right = buttons.filter(b => b.kind === 'pane')
+
     return (
-      <Box columnGap={1}>
-        {buttons.map(b => (
-          <Button
-            key={b.id}
-            label={b.label}
-            onPress={
-              b.kind === 'pane'
-                ? () => {
-                    void openSettings($, ui)
-                  }
-                : send(b.submit)
-            }
-          />
-        ))}
+      <Box width={width} justifyContent="space-between">
+        <Box columnGap={1}>
+          {left.map(b => (
+            <Button key={b.id} label={b.label} onPress={send(b.submit)} />
+          ))}
+        </Box>
+        <Box columnGap={1}>
+          {right.map(b => (
+            <Button
+              key={b.id}
+              label={b.label}
+              onPress={() => {
+                void openSettings($, ui)
+              }}
+            />
+          ))}
+        </Box>
       </Box>
     )
   })

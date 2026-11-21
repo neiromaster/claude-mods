@@ -17,7 +17,7 @@ const SETTINGS: CatalogEntry = {
   id: 'settings',
   kind: 'pane',
   title: 'settings',
-  titles: { ru: '⚙ настройки', en: '⚙ settings' },
+  titles: { ru: '⚙', en: '⚙' },
 }
 
 test('normalizeCatalog keeps valid entries and drops broken ones', () => {
