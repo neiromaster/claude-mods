@@ -126,8 +126,6 @@ async function setDisabled($: EngineInterface, id: string, disabled: boolean): P
   const next = { ...((await read($, disabledAtom)) ?? {}), [id]: disabled }
   await update($, disabledAtom, () => next)
   await $.store.set('disabled', next)
-  // ВРЕМЕННАЯ диагностика
-  $.ui.toast(`diag: ${id}=${disabled} | state+store записаны`)
 }
 
 // ---- Локализация интерфейса панели ----
@@ -303,7 +301,6 @@ export const register: Register = (on, options) => {
         })}
         <Button key="close" label={ui.close} onPress={() => { void $.ui.close({ id: PANE }) }} />
         <Text dimColor>{ui.hint}</Text>
-        <Text dimColor>diag: {JSON.stringify(disabled)}</Text>
       </Box>
     )
   })
