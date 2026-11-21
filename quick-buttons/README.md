@@ -13,8 +13,25 @@ running, the message is queued and sent once the session is idle.
 - Digit hotkeys were intentionally removed: typing `1` or `2` in an empty prompt
   types text as usual.
 
+## Language
+
+Button labels are configurable: `ru` (default — «да», «коммить») or `en`
+("yes", "commit"). A press submits the label text of the chosen language as
+the user's own words. Switch it in the `/config` menu
+(`quick-buttons.language`), via `/plugin configure quick-buttons@plugins-local`,
+or in settings:
+
+```json
+{
+  "pluginConfigs": {
+    "quick-buttons": { "language": "en" }
+  }
+}
+```
+
 ## Setup
 
-No configuration needed. Requires Claude Code 2.1.287+ (mods). Draw on the
-`terminal` and `desktop` surfaces; nothing draws under `claude -p`, the Agent
-SDK, or cloud sessions — that is platform behavior, not a bug.
+Language is the only option; everything else works out of the box. Requires
+Claude Code 2.1.287+ (mods). Draw on the `terminal` and `desktop` surfaces;
+nothing draws under `claude -p`, the Agent SDK, or cloud sessions — that is
+platform behavior, not a bug.
