@@ -81,7 +81,7 @@ test('buttonsFor honours show toggles; hidden entries are filtered by the caller
     { id: 'commit', kind: 'prompt', label: 'коммить', submit: 'коммить' },
     { id: 'hint', kind: 'prompt', label: 'Подсказка', submit: 'Покажи подсказку' },
   ])
-  // Выключенные через $.store кнопки вызывающий код фильтрует до buttonsFor:
+  // Buttons hidden via $.store are filtered by the caller before buttonsFor:
   expect(buttonsFor(cat.filter(b => b.id !== 'settings'), 'ru', {}).map(b => b.id)).toEqual([
     'da',
     'commit',

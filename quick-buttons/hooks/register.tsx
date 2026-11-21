@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 const PANE = 'quick-buttons-settings'
 
-// ---- Каталог (buttons.json) ----
+// ---- Catalog (buttons.json) ----
 
 export interface CatalogEntry {
   id: string
@@ -22,13 +22,13 @@ export interface HudButton {
   submit: string
 }
 
-// Фолбэк, если buttons.json отсутствует или битый.
+// Fallback when buttons.json is missing or broken.
 const BUILTIN_BUTTONS: unknown = [
-  { id: 'da', title: 'yes', titles: { ru: 'да' }, text: 'yes' },
-  { id: 'commit', title: 'commit', titles: { ru: 'коммить' } },
+  { id: 'da', title: 'yes', text: 'yes' },
+  { id: 'commit', title: 'commit' },
 ]
 
-// Строгая нормализация: битые записи отбрасываются, лишние поля срезаются.
+// Strict normalization: invalid entries are dropped, unknown fields are stripped.
 export function normalizeCatalog(raw: unknown): CatalogEntry[] {
   if (!Array.isArray(raw)) return []
   const out: CatalogEntry[] = []
@@ -64,9 +64,9 @@ export function normalizeCatalog(raw: unknown): CatalogEntry[] {
   return out
 }
 
-// show — toggle-поля из настроек: show[id] === false прячет кнопку,
-// undefined/true и неизвестные ключи ничего не меняют. Порядок следует каталогу.
-// Отправляемый текст: texts[lang] → text → label активного языка; command сильнее всех.
+// show toggles: show[id] === false hides the button; undefined/true and
+// unknown keys keep it. Order follows the catalog.
+// Submit text: texts[lang] -> text -> label in the active language; command beats all.
 export function buttonsFor(
   catalog: CatalogEntry[],
   lang: string | undefined,
@@ -77,9 +77,7 @@ export function buttonsFor(
   for (const b of catalog) {
     if (show?.[b.id] === false) continue
     const label = b.titles[langKey] ?? b.title
-    const submit = b.command
-      ? '/' + b.command
-      : (b.texts?.[langKey] ?? b.text ?? label)
+    const submit = b.command ? '/' + b.command : (b.texts?.[langKey] ?? b.text ?? label)
     result.push({ id: b.id, kind: b.kind, label, submit })
   }
   return result
@@ -92,12 +90,12 @@ async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
     const cat = normalizeCatalog(parsed.buttons)
     if (cat.length > 0) return cat
   } catch {
-    // файла нет или битый JSON — встроенный каталог
+    // missing file or broken JSON -> built-in catalog
   }
   return normalizeCatalog(BUILTIN_BUTTONS)
 }
 
-// ⚙ — встроенная кнопка панели настроек, в JSON не живёт.
+// The settings button is built in, it does not live in buttons.json.
 function withSettings(catalog: CatalogEntry[]): CatalogEntry[] {
   const filtered = catalog.filter(b => b.id !== 'settings')
   return [
@@ -111,7 +109,7 @@ function withSettings(catalog: CatalogEntry[]): CatalogEntry[] {
   ]
 }
 
-// ---- Локали (locales.json) ----
+// ---- Locales (locales.json) ----
 
 export interface UiStrings {
   on: string
@@ -124,6 +122,8 @@ export interface UiStrings {
   label: string
 }
 
+// Built-in strings are the fallback; locales.json overrides any field
+// per language. The ru entry is localization data, not code.
 const BUILTIN_UI: Record<string, UiStrings> = {
   ru: {
     on: 'вкл',
@@ -147,8 +147,6 @@ const BUILTIN_UI: Record<string, UiStrings> = {
   },
 }
 
-// Мерж поверх встроенных строк: locales.json может переопределить любое
-// поле или добавить новый язык целиком.
 export function uiStringsFor(
   loaded: Record<string, Partial<UiStrings>> | undefined,
   lang: string | undefined,
@@ -179,14 +177,13 @@ async function loadLocales($: EngineInterface): Promise<Record<string, Partial<U
   }
 }
 
-// ---- Состояние видимости ----
+// ---- Visibility state ----
 
-// Живое состояние видимости: рендеры, читающие атом, подписаны и
-// перерисовываются при записи сами (без $.ui.invalidate).
+// Renders reading the atom are subscribed and redraw on writes by themselves.
 const disabledAtom = atom({ plugin: 'quick-buttons', key: 'disabled' } as const, {})
 
-// Персистентность: $.store хранит map между сессиями (вне папки плагина —
-// переживает обновления), state — живая подписанная копия для рендеров.
+// $.store persists across sessions and plugin updates (a JSON file outside
+// the plugin folder); state is the live subscribed copy for renders.
 async function seedDisabledFromStore($: EngineInterface): Promise<void> {
   try {
     const stored = await $.store.get('disabled')
@@ -198,7 +195,7 @@ async function seedDisabledFromStore($: EngineInterface): Promise<void> {
       await update($, disabledAtom, () => map)
     }
   } catch {
-    // стор недоступен — стартуем с пустого state
+    // store unavailable -> start with an empty state
   }
 }
 
@@ -208,7 +205,7 @@ async function setDisabled($: EngineInterface, id: string, disabled: boolean): P
   await $.store.set('disabled', next)
 }
 
-// ---- Помощники верхнего уровня ($ трассируется только здесь) ----
+// ---- Top-level helpers ($ is traced only through these) ----
 
 async function openSettings($: EngineInterface, ui: UiStrings): Promise<void> {
   const opened = await $.ui.open({
@@ -218,7 +215,7 @@ async function openSettings($: EngineInterface, ui: UiStrings): Promise<void> {
     closeOnEscape: true,
   })
   if (!opened.isPlaced) {
-    $.ui.toast(`quick-buttons: панель не открылась (${String(opened.reason)})`)
+    $.ui.toast(`quick-buttons: failed to open the pane (${String(opened.reason)})`)
   }
 }
 
@@ -227,7 +224,7 @@ async function setConfig($: EngineInterface, rowKey: string, value: string | boo
   $.ui.invalidate('ui.render')
 }
 
-// ---- Регистрация ----
+// ---- Registration ----
 
 export const register: Register = (on, options) => {
   const opts = (options ?? {}) as Record<string, unknown>
@@ -252,7 +249,7 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'buttons-config' }, async $ => {
     const locales = await loadLocales($)
     await openSettings($, uiStringsFor(locales, lang))
-    return { text: 'quick-buttons: панель настроек открыта.' }
+    return { text: 'quick-buttons: settings pane opened.' }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -291,7 +288,7 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // Панель-подменю настроек: язык и тумблеры кнопок каталога.
+  // Settings pane submenu: language picker and catalog button toggles.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Select } = $.ui.resolve(e)
     const rows = await $.config.list()
@@ -336,7 +333,7 @@ export const register: Register = (on, options) => {
             onSelect={value => {
               void (async () => {
                 await setConfig($, rowKey('language'), value)
-                // Перезаголовок открытой панели под новый язык.
+                // Re-title the open pane for the new language.
                 await openSettings($, uiStringsFor(locales, value))
               })()
             }}
