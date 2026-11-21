@@ -29,6 +29,22 @@ or in settings:
 }
 ```
 
+## Buttons
+
+Which buttons the band shows is configurable: set `quick-buttons.buttons` to a
+comma-separated list of catalog ids (`da`, `commit` — the catalog grows with
+releases). Empty or unset means all buttons; unknown ids are dropped and the
+order follows the catalog. If the list resolves to nothing, the band row is
+not drawn at all.
+
+```json
+{
+  "pluginConfigs": {
+    "quick-buttons": { "buttons": "da, commit" }
+  }
+}
+```
+
 ## Setup
 
 Language is the only option; everything else works out of the box. Requires
