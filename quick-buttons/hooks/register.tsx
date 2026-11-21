@@ -169,7 +169,10 @@ export const register: Register = (on, options) => {
     const toggles = CATALOG.filter(b => b.kind === 'prompt')
 
     return (
-      <Box flexDirection="column" paddingX={1} paddingTop={1}>
+      <Box flexDirection="column" paddingX={1}>
+        <Box paddingBottom={1}>
+          <Text bold>quick-buttons · {ui.settings}</Text>
+        </Box>
         <Select
           key="lang"
           label={ui.language}
