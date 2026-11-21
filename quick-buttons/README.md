@@ -1,0 +1,20 @@
+# quick-buttons
+
+A Claude Code mod (plugin subtype) that draws two buttons — `да` and `коммить` —
+in the band directly above the prompt input. Pressing a button submits its label
+as the user's own words (`$.prompt.submit` with `asUser: true`); if a turn is
+running, the message is queued and sent once the session is idle.
+
+## Usage
+
+- Click a button, or focus the band with `Ctrl+X Tab` and press `Enter`/`Space`
+  (`Tab`/arrows move between buttons).
+- `Ctrl+X Ctrl+A` collapses or expands the band.
+- Digit hotkeys were intentionally removed: typing `1` or `2` in an empty prompt
+  types text as usual.
+
+## Setup
+
+No configuration needed. Requires Claude Code 2.1.287+ (mods). Draw on the
+`terminal` and `desktop` surfaces; nothing draws under `claude -p`, the Agent
+SDK, or cloud sessions — that is platform behavior, not a bug.

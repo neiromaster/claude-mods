@@ -1,0 +1,6 @@
+{
+  "name": "quick-buttons",
+  "version": "0.1.0",
+  "description": "Кнопки «да» и «коммить» над полем ввода",
+  "license": "MIT"
+}

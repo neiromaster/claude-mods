@@ -1,0 +1,11 @@
+{
+  "name": "plugins-local",
+  "owner": { "name": "loris" },
+  "plugins": [
+    {
+      "name": "quick-buttons",
+      "source": "./quick-buttons",
+      "description": "Кнопки «да» и «коммить» над полем ввода"
+    }
+  ]
+}
