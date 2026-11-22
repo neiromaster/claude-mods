@@ -326,29 +326,47 @@ export const register: Register = (on, options) => {
         $.ui.toast(`chime failed: ${String(err)}`)
       })
     } else {
-      // macOS: $.audio.play uses afplay. Linux: $.audio.play has no player,
-      // so a detached cascade of standard players is spawned first (paplay,
-      // aplay, pw-play); $.audio.play stays as a no-op there.
-      void (async () => {
-        try {
-          const wav = `${$.plugin.root.replace(/\\/g, '/')}/assets/notification.wav`
-          await $.process.spawn({
+      // macOS: $.audio.play uses afplay. WSL: $.audio.play has no player,
+      // but powershell.exe is reachable through WSL interop -> the Windows
+      // system sound plays on the Windows side. Native Linux: a detached
+      // cascade of standard players (paplay, aplay, pw-play).
+      const wsl = await $.env.get("WSL_DISTRO_NAME")
+      if (wsl) {
+        void $.process
+          .spawn({
             argv: [
-              'sh',
-              '-c',
-              'nohup paplay "$1" >/dev/null 2>&1 || nohup aplay "$1" >/dev/null 2>&1 || nohup pw-play "$1" >/dev/null 2>&1 || true',
-              'sh',
-              wav,
+              'powershell.exe',
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              '[System.Media.SystemSounds]::Asterisk.Play(); Start-Sleep -Milliseconds 700',
             ],
           })
+          .catch(() => {
+            // best-effort
+          })
+      } else {
+        void (async () => {
+          try {
+            const wav = `${$.plugin.root.replace(/\\/g, '/')}/assets/notification.wav`
+            await $.process.spawn({
+              argv: [
+                'sh',
+                '-c',
+                'nohup paplay "$1" >/dev/null 2>&1 || nohup aplay "$1" >/dev/null 2>&1 || nohup pw-play "$1" >/dev/null 2>&1 || true',
+                'sh',
+                wav,
+              ],
+            })
+          } catch {
+            // best-effort
+          }
+        })()
+        try {
+          await $.audio.play({ asset: 'assets/notification.wav' })
         } catch {
-          // best-effort
+          // macOS path; Linux plays via the cascade above
         }
-      })()
-      try {
-        await $.audio.play({ asset: 'assets/notification.wav' })
-      } catch {
-        // macOS path; Linux plays via the cascade above
       }
     }
     return next(e)

@@ -94,8 +94,9 @@ On Windows, `$.audio.play` has no player, so the mod plays the wav by
 spawning a PowerShell `MediaPlayer` (`assets/notification.wav`, a copy of the
 system Windows Notify sound). On macOS the built-in `$.audio.play` (afplay)
 is used. On Linux a detached cascade of `paplay` → `aplay` → `pw-play` is
-spawned (present on virtually every distro; without one of them a Linux
-terminal stays silent).
+spawned. In WSL (detected via `WSL_DISTRO_NAME`) the cascade is skipped:
+`powershell.exe` is invoked through WSL interop and plays the Windows system
+sound on the Windows side — no WSLg or audio server required.
 
 ## Settings pane
 
