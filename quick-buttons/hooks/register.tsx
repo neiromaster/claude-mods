@@ -321,9 +321,8 @@ export const register: Register = (on, options) => {
     }
     const os = (await $.env.get("OS")) ?? ''
     if (os === 'Windows_NT') {
-      $.ui.toast(`diag: ring (${Math.round(e.durationMs / 1000)}s)`) // ВРЕМЕННАЯ диагностика
       await playWindowsChime($).catch(err => {
-        $.ui.toast(`chime failed: ${String(err)}`)
+        $.ui.toast(`quick-buttons: chime failed (${String(err)})`)
       })
     } else {
       // macOS: $.audio.play uses afplay. WSL: $.audio.play has no player,
