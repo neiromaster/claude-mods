@@ -287,9 +287,15 @@ async function playWindowsChime($: EngineInterface): Promise<void> {
     `$m = New-Object System.Windows.Media.MediaPlayer; ` +
     `$m.Open([uri]'${wav}'); ` +
     `$m.Play(); Start-Sleep -Milliseconds 1800`
-  await $.process.spawn({
+  // The spawn returns a stream; iterating it to the end waits for the child
+  // process to exit. Fire-and-forget spawns get reaped by the engine when the
+  // hook's dispatch completes, which kills the player before it plays.
+  const stream = $.process.spawn({
     argv: ['powershell', '-NoProfile', '-NonInteractive', '-EncodedCommand', toPsBase64(script)],
   })
+  for await (const chunk of stream) {
+    void chunk
+  }
 }
 
 // ---- Registration ----
