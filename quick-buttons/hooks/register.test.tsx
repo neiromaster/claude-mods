@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { buttonsFor, normalizeCatalog, type CatalogEntry } from './register'
+import { buttonsFor, mergeCatalogs, normalizeCatalog, type CatalogEntry } from './register'
 
 const JSON_CATALOG = [
   { id: 'da', title: 'yes', titles: { ru: 'да' } },
@@ -87,4 +87,28 @@ test('buttonsFor honours show toggles; hidden entries are filtered by the caller
     'commit',
     'hint',
   ])
+})
+
+test('mergeCatalogs: later layers override by id, new ids append, order = first occurrence', () => {
+  const base = normalizeCatalog([
+    { id: 'da', title: 'yes' },
+    { id: 'commit', title: 'commit' },
+  ])
+  const global = normalizeCatalog([
+    { id: 'commit', title: 'commit!', titles: { ru: 'коммит!' } },
+    { id: 'review', title: 'Review' },
+  ])
+  const merged = mergeCatalogs([base, global])
+  expect(merged.map(b => [b.id, b.title])).toEqual([
+    ['da', 'yes'],
+    ['commit', 'commit!'],
+    ['review', 'Review'],
+  ])
+  expect(merged[1]?.titles).toEqual({ ru: 'коммит!' })
+})
+
+test('mergeCatalogs: empty layers are skipped', () => {
+  const base = normalizeCatalog([{ id: 'da', title: 'yes' }])
+  expect(mergeCatalogs([[], base, []]).map(b => b.id)).toEqual(['da'])
+  expect(mergeCatalogs([])).toEqual([])
 })

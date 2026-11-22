@@ -83,16 +83,47 @@ export function buttonsFor(
   return result
 }
 
-async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
-  try {
-    const raw = await $.fs.read(`${$.plugin.root}/buttons.json`)
-    const parsed = JSON.parse(raw) as { buttons?: unknown }
-    const cat = normalizeCatalog(parsed.buttons)
-    if (cat.length > 0) return cat
-  } catch {
-    // missing file or broken JSON -> built-in catalog
+// Catalog layers: built-in (fallback) -> shipped buttons.json -> global
+// (~/.claude) -> project (.claude). Later layers override entries by id
+// and append new ids; order = first occurrence.
+export function mergeCatalogs(layers: CatalogEntry[][]): CatalogEntry[] {
+  const byId = new Map<string, CatalogEntry>()
+  for (const layer of layers) {
+    for (const b of layer) byId.set(b.id, b)
   }
-  return normalizeCatalog(BUILTIN_BUTTONS)
+  return [...byId.values()]
+}
+
+async function readCatalog($: EngineInterface, path: string): Promise<CatalogEntry[]> {
+  try {
+    const raw = await $.fs.read(path)
+    const parsed = JSON.parse(raw) as { buttons?: unknown }
+    return normalizeCatalog(parsed.buttons)
+  } catch {
+    return []
+  }
+}
+
+async function homeDir($: EngineInterface): Promise<string | undefined> {
+  const win = await $.env.get("USERPROFILE")
+  if (win) return win.replace(/\\/g, '/')
+  const unix = await $.env.get("HOME")
+  return unix ?? undefined
+}
+
+async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
+  const layers: CatalogEntry[][] = [normalizeCatalog(BUILTIN_BUTTONS)]
+
+  const shipped = await readCatalog($, `${$.plugin.root}/buttons.json`)
+  layers.push(shipped.length > 0 ? shipped : normalizeCatalog(BUILTIN_BUTTONS))
+
+  const home = await homeDir($)
+  if (home) {
+    layers.push(await readCatalog($, `${home}/.claude/quick-buttons.buttons.json`))
+  }
+  layers.push(await readCatalog($, '.claude/quick-buttons.json'))
+
+  return mergeCatalogs(layers)
 }
 
 // The settings button is built in, it does not live in buttons.json.

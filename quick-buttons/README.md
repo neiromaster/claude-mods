@@ -28,12 +28,21 @@ the user's own words. Switch it in the `/config` menu
 }
 ```
 
-## Buttons (catalog: buttons.json)
+## Buttons (three catalog layers)
 
-The button catalog lives in `buttons.json` next to the plugin manifest — edit
-it without touching code; changes apply on the next session or
-`/reload-plugins`. `buttons.schema.json` alongside gives editors validation
-and autocomplete.
+The visible catalog is merged from three `buttons` arrays, in order:
+
+1. **Shipped defaults** — `buttons.json` in the plugin folder;
+2. **Global** — `~/.claude/quick-buttons.buttons.json` (your buttons in every
+   project);
+3. **Project** — `.claude/quick-buttons.json` in the project root (buttons for
+   this project only, shareable with the repo).
+
+Later layers override entries with the same `id` (in place, order preserved)
+and append new ids. Missing files are skipped; if no layer provides anything,
+the built-in two-button fallback is used. `buttons.schema.json` in the plugin
+folder gives editors validation and autocomplete — point `$schema` at it from
+any of the files.
 
 Each entry: `id`, `title` (fallback label), `titles` (per-language labels,
 e.g. `{ "ru": "да" }`), and how pressing submits:
@@ -47,10 +56,22 @@ Precedence: `texts[active language]` → `text` → the label in the active
 language; `command` overrides all of them. With none of them, pressing
 submits the label itself.
 
-`disabled: true` hides the button — the settings pane toggles this for you
-and writes the file back. The ⚙ settings button is built in; its visibility
-is the `show_settings` option in `/config`. If `buttons.json` is missing or
-broken, a built-in two-button catalog is used instead.
+Visibility: the settings pane stores per-button toggles in `$.store` (outside
+the plugin folder, survives plugin updates); a hidden button stays hidden
+regardless of the catalog layers. The ⚙ settings button is built in; its
+visibility is the `show_settings` option in `/config`. If no layer provides
+anything, the built-in two-button fallback is used.
+
+```json
+{
+  "$schema": "./buttons.schema.json",
+  "buttons": [
+    { "id": "da", "title": "yes", "titles": { "ru": "да" }, "text": "yes" },
+    { "id": "commit", "title": "commit", "titles": { "ru": "коммить" } },
+    { "id": "review", "title": "review", "titles": { "ru": "ревью" }, "command": "review" }
+  ]
+}
+```
 
 ```json
 {
