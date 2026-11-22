@@ -3,6 +3,9 @@
   "title": "quick-buttons UI locales",
   "type": "object",
   "description": "Per-language UI strings. Each key is a language code; fields override the built-in strings. Adding a key adds a language to the picker.",
+  "properties": {
+    "$schema": { "type": "string" }
+  },
   "patternProperties": {
     "^[a-zA-Z][a-zA-Z0-9_-]*$": {
       "type": "object",
