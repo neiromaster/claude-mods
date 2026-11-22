@@ -23,12 +23,6 @@ export interface HudButton {
   submit: string
 }
 
-// Fallback when buttons.json is missing or broken.
-const BUILTIN_BUTTONS: unknown = [
-  { id: 'da', title: 'yes', text: 'yes' },
-  { id: 'commit', title: 'commit' },
-]
-
 // Strict normalization: invalid entries are dropped, unknown fields are stripped.
 export function normalizeCatalog(raw: unknown): CatalogEntry[] {
   if (!Array.isArray(raw)) return []
@@ -113,16 +107,17 @@ async function homeDir($: EngineInterface): Promise<string | undefined> {
 }
 
 async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
-  const layers: CatalogEntry[][] = [normalizeCatalog(BUILTIN_BUTTONS)]
+  const layers: CatalogEntry[][] = []
 
   const shipped = await readCatalog($, `${$.plugin.root}/buttons.json`)
-  layers.push(shipped.length > 0 ? shipped : normalizeCatalog(BUILTIN_BUTTONS))
+  if (shipped.length > 0) layers.push(shipped)
 
   const home = await homeDir($)
   if (home) {
     layers.push(await readCatalog($, `${home}/.claude/quick-buttons.buttons.json`))
   }
-  layers.push(await readCatalog($, '.claude/quick-buttons.json'))
+  const project = await readCatalog($, '.claude/quick-buttons.json')
+  if (project.length > 0) layers.push(project)
 
   return mergeCatalogs(layers)
 }

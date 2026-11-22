@@ -40,7 +40,7 @@ The visible catalog is merged from three `buttons` arrays, in order:
 
 Later layers override entries with the same `id` (in place, order preserved)
 and append new ids. Missing files are skipped; if no layer provides anything,
-the built-in two-button fallback is used. `buttons.schema.json` in the plugin
+no buttons are drawn at all. `buttons.schema.json` in the plugin
 folder gives editors validation and autocomplete — point `$schema` at it from
 any of the files.
 
@@ -60,7 +60,7 @@ Visibility: the settings pane stores per-button toggles in `$.store` (outside
 the plugin folder, survives plugin updates); a hidden button stays hidden
 regardless of the catalog layers. The ⚙ settings button is built in; its
 visibility is the `show_settings` option in `/config`. If no layer provides
-anything, the built-in two-button fallback is used.
+anything, no buttons are drawn at all.
 
 ```json
 {
