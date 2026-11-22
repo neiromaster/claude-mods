@@ -151,6 +151,7 @@ export interface UiStrings {
   hint: string
   buttons: string
   label: string
+  sound: string
 }
 
 // Built-in strings are the fallback; locales.json overrides any field
@@ -165,6 +166,7 @@ const BUILTIN_UI: Record<string, UiStrings> = {
     hint: 'Esc — закрыть · Tab/клик — переключить',
     buttons: 'кнопки',
     label: 'Русский',
+    sound: 'звук',
   },
   en: {
     on: 'on',
@@ -175,6 +177,7 @@ const BUILTIN_UI: Record<string, UiStrings> = {
     hint: 'Esc — close · Tab/click — toggle',
     buttons: 'buttons',
     label: 'English',
+    sound: 'sound',
   },
 }
 
@@ -212,6 +215,7 @@ async function loadLocales($: EngineInterface): Promise<Record<string, Partial<U
 
 // Renders reading the atom are subscribed and redraw on writes by themselves.
 const disabledAtom = atom({ plugin: 'quick-buttons', key: 'disabled' } as const, {})
+const soundAtom = atom({ plugin: 'quick-buttons', key: 'sound' } as const, true)
 
 // $.store persists across sessions and plugin updates (a JSON file outside
 // the plugin folder); state is the live subscribed copy for renders.
@@ -225,6 +229,10 @@ async function seedDisabledFromStore($: EngineInterface): Promise<void> {
       }
       await update($, disabledAtom, () => map)
     }
+    const storedSound = await $.store.get('sound')
+    if (typeof storedSound === 'boolean') {
+      await update($, soundAtom, () => storedSound)
+    }
   } catch {
     // store unavailable -> start with an empty state
   }
@@ -234,6 +242,11 @@ async function setDisabled($: EngineInterface, id: string, disabled: boolean): P
   const next = { ...((await read($, disabledAtom)) ?? {}), [id]: disabled }
   await update($, disabledAtom, () => next)
   await $.store.set('disabled', next)
+}
+
+async function setSound($: EngineInterface, on: boolean): Promise<void> {
+  await update($, soundAtom, () => on)
+  await $.store.set('sound', on)
 }
 
 // ---- Top-level helpers ($ is traced only through these) ----
@@ -268,6 +281,18 @@ export const register: Register = (on, options) => {
     }
   }
 
+  on('turn.complete', async ($, e, next) => {
+    const on = (await read($, soundAtom)) ?? true
+    if (on) {
+      try {
+        await $.audio.play({ asset: 'assets/notification.wav' })
+      } catch {
+        // playback is best-effort
+      }
+    }
+    return next(e)
+  })
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'buttons-config',
@@ -284,6 +309,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const soundOn = (await read($, soundAtom)) ?? true
     const locales = await loadLocales($)
     const ui = uiStringsFor(locales, lang)
     const catalog = withSettings(await loadButtons($))
@@ -313,6 +339,13 @@ export const register: Register = (on, options) => {
           ))}
         </Box>
         <Box columnGap={1}>
+          <Button
+            key="sound"
+            label={soundOn ? '🔔' : '🔕'}
+            onPress={() => {
+              void setSound($, !soundOn)
+            }}
+          />
           {right.map(b => (
             <Button
               key={b.id}
@@ -338,6 +371,7 @@ export const register: Register = (on, options) => {
     const rawLang = rowValue('language')
     const paneLang = typeof rawLang === 'string' ? rawLang : 'ru'
     const disabled = (await read($, disabledAtom)) ?? {}
+    const soundOn = (await read($, soundAtom)) ?? true
     const catalog = await loadButtons($)
     const locales = await loadLocales($)
     const ui = uiStringsFor(locales, paneLang)
@@ -401,6 +435,21 @@ export const register: Register = (on, options) => {
               </Box>
             )
           })}
+        </Box>
+
+        <Box>
+          <Text>🔊 {ui.sound}: </Text>
+          <Button
+            key="sound-toggle"
+            plain
+            onPress={() => {
+              void setSound($, !soundOn)
+            }}
+          >
+            <Text color={soundOn ? '#22c55e' : '#6b7280'}>{soundOn ? '●' : '○'}</Text>
+            {' '}
+            <Text dimColor>{soundOn ? ui.on : ui.off}</Text>
+          </Button>
         </Box>
 
         <Button key="close" variant="primary" label={ui.close} onPress={() => { void $.ui.close({ id: PANE }) }} />

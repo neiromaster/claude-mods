@@ -39,6 +39,10 @@
         "buttons": {
           "type": "string",
           "description": "Header of the buttons section."
+        },
+        "sound": {
+          "type": "string",
+          "description": "Label of the sound toggle."
         }
       }
     }
