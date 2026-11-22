@@ -95,13 +95,31 @@ and **adding a key adds a language to the picker** in the settings pane.
   "en": { "label": "English" },
   "es": {
     "label": "Español",
-    "on": "sí",
-    "off": "no",
+    "on": "activado",
+    "off": "desactivado",
+    "language": "idioma",
+    "close": "cerrar",
     "settings": "ajustes",
-    "buttons": "botones"
+    "hint": "Esc — cerrar · Tab/clic — alternar",
+    "buttons": "botones",
+    "sound": "sonido"
+  },
+  "fr": {
+    "label": "Français",
+    "on": "activé",
+    "off": "désactivé",
+    "language": "langue",
+    "close": "fermer",
+    "settings": "réglages",
+    "hint": "Échap — fermer · Tab/clic — basculer",
+    "buttons": "boutons",
+    "sound": "son"
   }
 }
 ```
+
+Shipped languages: **ru**, **en**, **es**, **fr** — the picker lists every
+language that has an entry here or in the built-in fallback.
 
 Fields: `label` (picker name), `on`/`off` (toggle state words), `language`,
 `close`, `settings`, `buttons` (section/labels), `hint` (bottom line).
