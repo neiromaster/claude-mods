@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 const PANE = 'quick-buttons-settings'
+const SOUND_MIN_MS = 5000
 
 // ---- Catalog (buttons.json) ----
 
@@ -281,14 +282,18 @@ export const register: Register = (on, options) => {
     }
   }
 
+  // Ring for the main loop's turn only (e.agentId is absent there): subagent
+  // and nested-loop ends also raise this event. Skipped: aborted turns (the
+  // person interrupted, so they are present) and turns under the threshold.
   on('turn.complete', async ($, e, next) => {
     const soundOn = (await read($, soundAtom)) ?? true
-    if (soundOn) {
-      try {
-        await $.audio.play({ asset: 'assets/notification.wav' })
-      } catch {
-        // playback is best-effort
-      }
+    if (!soundOn || e.agentId || e.isAborted || e.durationMs < SOUND_MIN_MS) {
+      return next(e)
+    }
+    try {
+      await $.audio.play({ asset: 'assets/notification.wav' })
+    } catch {
+      // playback is best-effort
     }
     return next(e)
   })
