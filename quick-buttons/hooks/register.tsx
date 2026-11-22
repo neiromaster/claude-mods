@@ -265,16 +265,35 @@ async function setConfig($: EngineInterface, rowKey: string, value: string | boo
 }
 
 // $.audio.play has no player on Windows terminals (it resolves as "skipped"),
-// so the chime is played by a spawned PowerShell MediaPlayer instead.
+// so the chime is played by a detached hidden PowerShell MediaPlayer instead:
+// the spawned wrapper exits instantly, so nothing can kill the playback.
+function toPsBase64(script: string): string {
+  const bytes = new Uint8Array(script.length * 2)
+  for (let i = 0; i < script.length; i++) {
+    const code = script.charCodeAt(i)
+    bytes[i * 2] = code & 0xff
+    bytes[i * 2 + 1] = code >> 8
+  }
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  return btoa(bin)
+}
+
 async function playWindowsChime($: EngineInterface): Promise<void> {
   const wav = `${$.plugin.root.replace(/\\/g, '/')}/assets/notification.wav`
+  const inner =
+    `Add-Type -AssemblyName PresentationCore; ` +
+    `$m = New-Object System.Windows.Media.MediaPlayer; ` +
+    `$m.Open([uri]'${wav}'); ` +
+    `$m.Play(); Start-Sleep -Milliseconds 1800`
+  const encoded = toPsBase64(inner)
   await $.process.spawn({
     argv: [
       'powershell',
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      `Add-Type -AssemblyName PresentationCore; $m = New-Object System.Windows.Media.MediaPlayer; $m.Open([uri]'${wav}'); $m.Play(); Start-Sleep -Milliseconds 1500`,
+      `Start-Process powershell -WindowStyle Hidden -ArgumentList @('-NoProfile','-EncodedCommand','${encoded}')`,
     ],
   })
 }
@@ -302,8 +321,9 @@ export const register: Register = (on, options) => {
     }
     const os = (await $.env.get("OS")) ?? ''
     if (os === 'Windows_NT') {
-      void playWindowsChime($).catch(() => {
-        // best-effort
+      $.ui.toast(`diag: ring (${Math.round(e.durationMs / 1000)}s)`) // ВРЕМЕННАЯ диагностика
+      void playWindowsChime($).catch(err => {
+        $.ui.toast(`chime failed: ${String(err)}`)
       })
     } else {
       try {
