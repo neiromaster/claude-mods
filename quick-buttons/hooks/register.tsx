@@ -282,8 +282,8 @@ export const register: Register = (on, options) => {
   }
 
   on('turn.complete', async ($, e, next) => {
-    const on = (await read($, soundAtom)) ?? true
-    if (on) {
+    const soundOn = (await read($, soundAtom)) ?? true
+    if (soundOn) {
       try {
         await $.audio.play({ asset: 'assets/notification.wav' })
       } catch {
