@@ -107,18 +107,16 @@ async function homeDir($: EngineInterface): Promise<string | undefined> {
 }
 
 async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
-  const layers: CatalogEntry[][] = []
-
-  const shipped = await readCatalog($, `${$.plugin.root}/buttons.json`)
-  if (shipped.length > 0) layers.push(shipped)
-
+  const paths = [`${$.plugin.root}/buttons.json`]
   const home = await homeDir($)
-  if (home) {
-    layers.push(await readCatalog($, `${home}/.claude/quick-buttons.buttons.json`))
-  }
-  const project = await readCatalog($, '.claude/quick-buttons.json')
-  if (project.length > 0) layers.push(project)
+  if (home) paths.push(`${home}/.claude/quick-buttons.buttons.json`)
+  paths.push('.claude/quick-buttons.json')
 
+  const layers: CatalogEntry[][] = []
+  for (const path of paths) {
+    const entries = await readCatalog($, path)
+    if (entries.length > 0) layers.push(entries)
+  }
   return mergeCatalogs(layers)
 }
 
@@ -215,7 +213,7 @@ const soundAtom = atom({ plugin: 'quick-buttons', key: 'sound' } as const, true)
 
 // $.store persists across sessions and plugin updates (a JSON file outside
 // the plugin folder); state is the live subscribed copy for renders.
-async function seedDisabledFromStore($: EngineInterface): Promise<void> {
+async function seedStateFromStore($: EngineInterface): Promise<void> {
   try {
     const stored = await $.store.get('disabled')
     if (typeof stored === 'object' && stored !== null && !Array.isArray(stored)) {
@@ -260,8 +258,9 @@ async function openSettings($: EngineInterface, ui: UiStrings): Promise<void> {
 }
 
 async function setConfig($: EngineInterface, rowKey: string, value: string | boolean): Promise<void> {
+  // A userConfig change reloads the module, which re-renders every site;
+  // no explicit invalidation needed.
   await $.config.set({ key: rowKey, value })
-  $.ui.invalidate('ui.render')
 }
 
 // $.audio.play has no player on Windows terminals (it resolves as "skipped"),
@@ -378,7 +377,7 @@ export const register: Register = (on, options) => {
       name: 'buttons-config',
       description: 'Open the quick-buttons settings pane',
     })
-    await seedDisabledFromStore($)
+    await seedStateFromStore($)
     return next(e)
   })
 
@@ -407,12 +406,11 @@ export const register: Register = (on, options) => {
     }
 
     // Prompt buttons on the left, the ⚙ settings button pressed to the right edge.
-    const width = typeof e.props.bodyColumns === 'number' ? e.props.bodyColumns : undefined
     const left = buttons.filter(b => b.kind !== 'pane')
     const right = buttons.filter(b => b.kind === 'pane')
 
     return (
-      <Box width={width} justifyContent="space-between">
+      <Box width={e.props.bodyColumns} justifyContent="space-between">
         <Box columnGap={1}>
           {left.map(b => (
             <Button key={b.id} label={b.label} onPress={send(b.submit)} />
