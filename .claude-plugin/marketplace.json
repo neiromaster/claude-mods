@@ -5,7 +5,7 @@
     {
       "name": "quick-buttons",
       "source": "./quick-buttons",
-      "description": "Кнопки «да» и «коммить» над полем ввода"
+      "description": "Quick prompt buttons in the band above the prompt, with a settings pane and a completion sound"
     }
   ]
 }
