@@ -1,7 +1,7 @@
 {
   "$schema": "./buttons.schema.json",
   "buttons": [
-    { "id": "da", "title": "yes", "titles": { "ru": "да" }, "text": "yes" },
+    { "id": "yes", "title": "yes", "titles": { "ru": "да" }, "text": "yes" },
     { "id": "commit", "title": "commit", "titles": { "ru": "коммить" } }
   ]
 }
