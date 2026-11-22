@@ -269,6 +269,21 @@ async function setConfig($: EngineInterface, rowKey: string, value: string | boo
   $.ui.invalidate('ui.render')
 }
 
+// $.audio.play has no player on Windows terminals (it resolves as "skipped"),
+// so the chime is played by a spawned PowerShell MediaPlayer instead.
+async function playWindowsChime($: EngineInterface): Promise<void> {
+  const wav = `${$.plugin.root.replace(/\\/g, '/')}/assets/notification.wav`
+  await $.process.spawn({
+    argv: [
+      'powershell',
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `Add-Type -AssemblyName PresentationCore; $m = New-Object System.Windows.Media.MediaPlayer; $m.Open([uri]'${wav}'); $m.Play(); Start-Sleep -Milliseconds 1500`,
+    ],
+  })
+}
+
 // ---- Registration ----
 
 export const register: Register = (on, options) => {
@@ -290,10 +305,17 @@ export const register: Register = (on, options) => {
     if (!soundOn || e.agentId || e.isAborted || e.durationMs < SOUND_MIN_MS) {
       return next(e)
     }
-    try {
-      await $.audio.play({ asset: 'assets/notification.wav' })
-    } catch {
-      // playback is best-effort
+    const os = (await $.env.get("OS")) ?? ''
+    if (os === 'Windows_NT') {
+      void playWindowsChime($).catch(() => {
+        // best-effort
+      })
+    } else {
+      try {
+        await $.audio.play({ asset: 'assets/notification.wav' })
+      } catch {
+        // macOS path; other platforms have no player and skip silently
+      }
     }
     return next(e)
   })

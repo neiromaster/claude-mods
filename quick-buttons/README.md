@@ -84,6 +84,16 @@ anything, the built-in two-button fallback is used.
 }
 ```
 
+## Completion sound
+
+When a main-loop turn finishes (5s or longer, not interrupted, no subagents),
+a short Windows notification chime plays — the 🔔/🔕 button in the band or
+the 🔊 row in the settings pane toggles it (persisted in `$.store`).
+
+On Windows, `$.audio.play` has no player, so the mod plays the wav by
+spawning a PowerShell `MediaPlayer` (`assets/notification.wav`, a copy of the
+system Windows Notify sound). On macOS the built-in `$.audio.play` is used.
+
 ## Settings pane
 
 The band's ⚙ button (or the `/buttons-config` command) opens a settings pane:
