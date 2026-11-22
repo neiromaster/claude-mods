@@ -124,6 +124,13 @@ language that has an entry here or in the built-in fallback.
 Fields: `label` (picker name), `on`/`off` (toggle state words), `language`,
 `close`, `settings`, `buttons` (section/labels), `hint` (bottom line).
 
+**Adding a language — three places:**
+
+1. `locales.json` — the strings block (this also adds the language to the
+   pane's picker);
+2. `plugin.json` → `userConfig.language.options` — so `/config` accepts it;
+3. `buttons.json` — optional `titles`/`texts` keys for translated buttons.
+
 ## Completion sound
 
 When a main-loop turn finishes (5s or longer, not interrupted, no subagents),

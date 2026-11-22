@@ -7,9 +7,9 @@
   "userConfig": {
     "language": {
       "title": "Language",
-      "description": "Button labels language (ru/en)",
+      "description": "UI language (ru/en/es/fr)",
       "type": "string",
-      "options": ["ru", "en"],
+      "options": ["ru", "en", "es", "fr"],
       "default": "ru"
     },
     "show_settings": {
