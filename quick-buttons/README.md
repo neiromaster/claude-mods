@@ -132,6 +132,20 @@ settings pane.
 Fields: `label` (picker name), `on`/`off` (toggle state words), `language`,
 `close`, `settings`, `buttons` (section/labels), `hint` (bottom line).
 
+## Install
+
+From a Claude Code session:
+
+```
+/plugin install quick-buttons --marketplace neiromaster/claude-mods
+```
+
+Answer `y` to add the marketplace, then pick the user scope. Or from a shell:
+
+```
+claude plugin install quick-buttons --marketplace neiromaster/claude-mods
+```
+
 ## Setup
 
 Two options (language, visible buttons) — everything else works out of the
