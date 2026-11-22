@@ -79,12 +79,28 @@ export function buttonsFor(
 }
 
 // Catalog layers: built-in (fallback) -> shipped buttons.json -> global
-// (~/.claude) -> project (.claude). Later layers override entries by id
-// and append new ids; order = first occurrence.
+// (~/.claude) -> project (.claude). Later layers override scalar fields by
+// id, deep-merge the per-language maps (titles/texts) by language key, and
+// append new ids; order = first occurrence.
 export function mergeCatalogs(layers: CatalogEntry[][]): CatalogEntry[] {
   const byId = new Map<string, CatalogEntry>()
   for (const layer of layers) {
-    for (const b of layer) byId.set(b.id, b)
+    for (const b of layer) {
+      const prev = byId.get(b.id)
+      if (!prev) {
+        byId.set(b.id, b)
+        continue
+      }
+      byId.set(b.id, {
+        id: prev.id,
+        kind: b.kind,
+        title: b.title || prev.title,
+        titles: { ...prev.titles, ...b.titles },
+        text: b.text ?? prev.text,
+        texts: b.texts ? { ...(prev.texts ?? {}), ...b.texts } : prev.texts,
+        command: b.command ?? prev.command,
+      })
+    }
   }
   return [...byId.values()]
 }

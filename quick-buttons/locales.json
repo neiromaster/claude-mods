@@ -5,5 +5,25 @@
   },
   "en": {
     "label": "English"
+  },
+  "es": {
+    "label": "Español",
+    "on": "activado",
+    "off": "desactivado",
+    "language": "idioma",
+    "close": "cerrar",
+    "settings": "ajustes",
+    "hint": "Esc — cerrar · Tab/clic — alternar",
+    "buttons": "botones"
+  },
+  "fr": {
+    "label": "Français",
+    "on": "activé",
+    "off": "désactivé",
+    "language": "langue",
+    "close": "fermer",
+    "settings": "réglages",
+    "hint": "Échap — fermer · Tab/clic — basculer",
+    "buttons": "boutons"
   }
 }

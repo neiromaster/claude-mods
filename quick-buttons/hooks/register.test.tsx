@@ -112,3 +112,20 @@ test('mergeCatalogs: empty layers are skipped', () => {
   expect(mergeCatalogs([[], base, []]).map(b => b.id)).toEqual(['da'])
   expect(mergeCatalogs([])).toEqual([])
 })
+
+test('mergeCatalogs deep-merges per-language maps for the same id', () => {
+  const shipped = normalizeCatalog([
+    {
+      id: 'yes',
+      title: 'yes',
+      titles: { en: 'yes', es: 'sí', fr: 'oui' },
+      texts: { en: 'yes', es: 'sí', fr: 'oui' },
+    },
+  ])
+  const user = normalizeCatalog([
+    { id: 'yes', title: 'yes', titles: { ru: 'да' }, texts: { ru: 'да' } },
+  ])
+  const merged = mergeCatalogs([shipped, user])
+  expect(merged[0]?.titles).toEqual({ en: 'yes', es: 'sí', fr: 'oui', ru: 'да' })
+  expect(merged[0]?.texts).toEqual({ en: 'yes', es: 'sí', fr: 'oui', ru: 'да' })
+})
