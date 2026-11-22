@@ -332,19 +332,21 @@ export const register: Register = (on, options) => {
       // cascade of standard players (paplay, aplay, pw-play).
       const wsl = await $.env.get("WSL_DISTRO_NAME")
       if (wsl) {
-        void $.process
-          .spawn({
-            argv: [
-              'powershell.exe',
-              '-NoProfile',
-              '-NonInteractive',
-              '-Command',
-              '[System.Media.SystemSounds]::Asterisk.Play(); Start-Sleep -Milliseconds 700',
-            ],
-          })
-          .catch(() => {
+        void (async () => {
+          try {
+            await $.process.spawn({
+              argv: [
+                'powershell.exe',
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                '[System.Media.SystemSounds]::Asterisk.Play(); Start-Sleep -Milliseconds 700',
+              ],
+            })
+          } catch {
             // best-effort
-          })
+          }
+        })()
       } else {
         void (async () => {
           try {
