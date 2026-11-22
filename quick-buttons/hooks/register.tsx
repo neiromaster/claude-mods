@@ -326,10 +326,29 @@ export const register: Register = (on, options) => {
         $.ui.toast(`chime failed: ${String(err)}`)
       })
     } else {
+      // macOS: $.audio.play uses afplay. Linux: $.audio.play has no player,
+      // so a detached cascade of standard players is spawned first (paplay,
+      // aplay, pw-play); $.audio.play stays as a no-op there.
+      void (async () => {
+        try {
+          const wav = `${$.plugin.root.replace(/\\/g, '/')}/assets/notification.wav`
+          await $.process.spawn({
+            argv: [
+              'sh',
+              '-c',
+              'nohup paplay "$1" >/dev/null 2>&1 || nohup aplay "$1" >/dev/null 2>&1 || nohup pw-play "$1" >/dev/null 2>&1 || true',
+              'sh',
+              wav,
+            ],
+          })
+        } catch {
+          // best-effort
+        }
+      })()
       try {
         await $.audio.play({ asset: 'assets/notification.wav' })
       } catch {
-        // macOS path; other platforms have no player and skip silently
+        // macOS path; Linux plays via the cascade above
       }
     }
     return next(e)

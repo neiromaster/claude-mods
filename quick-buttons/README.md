@@ -92,7 +92,10 @@ the 🔊 row in the settings pane toggles it (persisted in `$.store`).
 
 On Windows, `$.audio.play` has no player, so the mod plays the wav by
 spawning a PowerShell `MediaPlayer` (`assets/notification.wav`, a copy of the
-system Windows Notify sound). On macOS the built-in `$.audio.play` is used.
+system Windows Notify sound). On macOS the built-in `$.audio.play` (afplay)
+is used. On Linux a detached cascade of `paplay` → `aplay` → `pw-play` is
+spawned (present on virtually every distro; without one of them a Linux
+terminal stays silent).
 
 ## Settings pane
 
