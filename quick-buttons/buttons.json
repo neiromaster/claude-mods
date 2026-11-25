@@ -3,30 +3,30 @@
   "buttons": [
     {
       "id": "yes",
-      "title": "yes",
-      "titles": { "en": "yes", "ru": "да", "es": "sí", "fr": "oui" },
-      "texts": { "en": "yes", "ru": "да", "es": "sí", "fr": "oui" }
+      "title": "Yes",
+      "titles": { "en": "Yes", "ru": "Да", "es": "Sí", "fr": "Oui" },
+      "texts": { "en": "Yes", "ru": "Да", "es": "Sí", "fr": "Oui" }
     },
     {
       "id": "continue",
-      "title": "continue",
-      "titles": { "en": "continue", "ru": "Продолжи", "es": "continúa", "fr": "continue" },
+      "title": "Continue",
+      "titles": { "en": "Continue", "ru": "Продолжи", "es": "Continúa", "fr": "Continue" },
       "texts": { "en": "Continue", "ru": "Продолжи", "es": "Continúa", "fr": "Continue" }
     },
     {
       "id": "commit",
-      "title": "commit",
-      "titles": { "en": "commit", "ru": "коммить", "es": "commit", "fr": "commit" },
-      "texts": { "en": "commit", "ru": "коммить", "es": "commit", "fr": "commit" }
+      "title": "Commit",
+      "titles": { "en": "Commit", "ru": "Коммить", "es": "Commit", "fr": "Commit" },
+      "texts": { "en": "Commit", "ru": "Коммить", "es": "Commit", "fr": "Commit" }
     },
     {
       "id": "compact",
-      "title": "compact context",
+      "title": "Compact context",
       "titles": {
-        "en": "compact context",
+        "en": "Compact context",
         "ru": "Сожми контекст",
-        "es": "comprime el contexto",
-        "fr": "compacte le contexte"
+        "es": "Comprime el contexto",
+        "fr": "Compacte le contexte"
       },
       "command": "compact"
     }
