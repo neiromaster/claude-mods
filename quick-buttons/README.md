@@ -70,6 +70,20 @@ Example — a project file adding a code-review button:
 }
 ```
 
+Common operations:
+
+- **Add** — append an entry to the topmost layer you use (global for buttons
+  in every project, project for this one);
+- **Remove** — delete its entry from the layer that defines it (the shipped
+  `buttons.json` for the defaults). To hide a button without deleting it,
+  toggle it off in the settings pane — the flag lives in `$.store` and
+  survives plugin updates;
+- **Reorder** — arrange the entries in your topmost layer in the desired
+  order; it defines the band order;
+- **Apply** — catalog edits take effect after `/reload-plugins` or a session
+  restart (the folder is read in place). Visibility toggles from the settings
+  pane apply instantly.
+
 ## Settings pane
 
 The ⚙ button (or the `/buttons-config` command) opens a settings pane:
