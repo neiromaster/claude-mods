@@ -12,6 +12,23 @@
       "title": "commit",
       "titles": { "en": "commit", "ru": "коммить", "es": "commit", "fr": "commit" },
       "texts": { "en": "commit", "ru": "коммить", "es": "commit", "fr": "commit" }
+    },
+    {
+      "id": "continue",
+      "title": "continue",
+      "titles": { "en": "continue", "ru": "Продолжи", "es": "continúa", "fr": "continue" },
+      "texts": { "en": "Continue", "ru": "Продолжи", "es": "Continúa", "fr": "Continue" }
+    },
+    {
+      "id": "compact",
+      "title": "compact context",
+      "titles": {
+        "en": "compact context",
+        "ru": "Сожми контекст",
+        "es": "comprime el contexto",
+        "fr": "compacte le contexte"
+      },
+      "command": "compact"
     }
   ]
 }
