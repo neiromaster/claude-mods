@@ -81,7 +81,8 @@ export function buttonsFor(
 // Catalog layers: built-in (fallback) -> shipped buttons.json -> global
 // (~/.claude) -> project (.claude). Later layers override scalar fields by
 // id, deep-merge the per-language maps (titles/texts) by language key, and
-// append new ids; order = first occurrence.
+// append new ids. The topmost non-empty layer defines the button order; ids
+// found only in lower layers are appended after it, in their own order.
 export function mergeCatalogs(layers: CatalogEntry[][]): CatalogEntry[] {
   const byId = new Map<string, CatalogEntry>()
   for (const layer of layers) {
@@ -102,7 +103,27 @@ export function mergeCatalogs(layers: CatalogEntry[][]): CatalogEntry[] {
       })
     }
   }
-  return [...byId.values()]
+  // The topmost non-empty layer defines the button order; ids found only in
+  // lower layers are appended after it, in their own order.
+  let orderRef: CatalogEntry[] | undefined
+  for (let i = layers.length - 1; i >= 0; i--) {
+    if (layers[i]!.length > 0) {
+      orderRef = layers[i]!
+      break
+    }
+  }
+  if (!orderRef) return []
+
+  const orderIds = new Set(orderRef.map(b => b.id))
+  const result: CatalogEntry[] = []
+  for (const b of orderRef) {
+    const entry = byId.get(b.id)
+    if (entry) result.push(entry)
+  }
+  for (const [id, entry] of byId) {
+    if (!orderIds.has(id)) result.push(entry)
+  }
+  return result
 }
 
 async function readCatalog($: EngineInterface, path: string): Promise<CatalogEntry[]> {

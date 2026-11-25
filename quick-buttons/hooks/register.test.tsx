@@ -89,7 +89,7 @@ test('buttonsFor honours show toggles; hidden entries are filtered by the caller
   ])
 })
 
-test('mergeCatalogs: later layers override by id, new ids append, order = first occurrence', () => {
+test('mergeCatalogs: the topmost non-empty layer defines the order', () => {
   const base = normalizeCatalog([
     { id: 'da', title: 'yes' },
     { id: 'commit', title: 'commit' },
@@ -100,11 +100,23 @@ test('mergeCatalogs: later layers override by id, new ids append, order = first 
   ])
   const merged = mergeCatalogs([base, global])
   expect(merged.map(b => [b.id, b.title])).toEqual([
-    ['da', 'yes'],
     ['commit', 'commit!'],
     ['review', 'Review'],
+    ['da', 'yes'],
   ])
-  expect(merged[1]?.titles).toEqual({ ru: 'коммит!' })
+  expect(merged[0]?.titles).toEqual({ ru: 'коммит!' })
+})
+
+test('mergeCatalogs: a layer can reorder existing buttons', () => {
+  const base = normalizeCatalog([
+    { id: 'a', title: 'A' },
+    { id: 'b', title: 'B' },
+  ])
+  const reordered = normalizeCatalog([
+    { id: 'b', title: 'B!' },
+    { id: 'a', title: 'A!' },
+  ])
+  expect(mergeCatalogs([base, reordered]).map(b => b.id)).toEqual(['b', 'a'])
 })
 
 test('mergeCatalogs: empty layers are skipped', () => {
