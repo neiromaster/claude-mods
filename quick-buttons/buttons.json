@@ -8,16 +8,16 @@
       "texts": { "en": "yes", "ru": "да", "es": "sí", "fr": "oui" }
     },
     {
-      "id": "commit",
-      "title": "commit",
-      "titles": { "en": "commit", "ru": "коммить", "es": "commit", "fr": "commit" },
-      "texts": { "en": "commit", "ru": "коммить", "es": "commit", "fr": "commit" }
-    },
-    {
       "id": "continue",
       "title": "continue",
       "titles": { "en": "continue", "ru": "Продолжи", "es": "continúa", "fr": "continue" },
       "texts": { "en": "Continue", "ru": "Продолжи", "es": "Continúa", "fr": "Continue" }
+    },
+    {
+      "id": "commit",
+      "title": "commit",
+      "titles": { "en": "commit", "ru": "коммить", "es": "commit", "fr": "commit" },
+      "texts": { "en": "commit", "ru": "коммить", "es": "commit", "fr": "commit" }
     },
     {
       "id": "compact",
