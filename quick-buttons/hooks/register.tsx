@@ -67,7 +67,7 @@ export function buttonsFor(
   lang: string | undefined,
   show: Record<string, boolean | undefined> | undefined,
 ): HudButton[] {
-  const langKey = lang ?? 'ru'
+  const langKey = lang ?? 'en'
   const result: HudButton[] = []
   for (const b of catalog) {
     if (show?.[b.id] === false) continue
@@ -216,7 +216,7 @@ export function uiStringsFor(
   loaded: Record<string, Partial<UiStrings>> | undefined,
   lang: string | undefined,
 ): UiStrings {
-  const key = lang ?? 'ru'
+  const key = lang ?? 'en'
   const base = BUILTIN_UI[key] ?? { ...BUILTIN_UI.ru!, label: key }
   const over = (loaded?.[key] ?? {}) as Partial<UiStrings>
   return { ...base, ...over, label: over.label ?? base.label }
@@ -338,7 +338,7 @@ async function playWindowsChime($: EngineInterface): Promise<void> {
 
 export const register: Register = (on, options) => {
   const opts = (options ?? {}) as Record<string, unknown>
-  const lang = typeof opts.language === 'string' ? opts.language : 'ru'
+  const lang = typeof opts.language === 'string' ? opts.language : 'en'
 
   const show: Record<string, boolean | undefined> = {}
   for (const [k, v] of Object.entries(opts)) {
@@ -484,7 +484,7 @@ export const register: Register = (on, options) => {
     const rowKey = (field: string): string => rowFor(field)?.key ?? `quick-buttons.${field}`
 
     const rawLang = rowValue('language')
-    const paneLang = typeof rawLang === 'string' ? rawLang : 'ru'
+    const paneLang = typeof rawLang === 'string' ? rawLang : 'en'
     const disabled = (await read($, disabledAtom)) ?? {}
     const soundOn = (await read($, soundAtom)) ?? true
     const catalog = await loadButtons($)

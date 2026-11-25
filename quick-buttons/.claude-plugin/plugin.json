@@ -10,7 +10,7 @@
       "description": "UI language (ru/en/es/fr)",
       "type": "string",
       "options": ["ru", "en", "es", "fr"],
-      "default": "ru"
+      "default": "en"
     },
     "show_settings": {
       "title": "Show ⚙ settings button",
