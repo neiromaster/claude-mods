@@ -218,3 +218,21 @@ test('listSoundChoices: no listing at all falls back to the shipped chime', asyn
   )
   expect(choices).toEqual([{ id: 'chime', file: 'assets/chime.wav' }])
 })
+
+test('listSoundChoices: hostile filenames are skipped, never reaching players', async () => {
+  const choices = await listSoundChoices(
+    fakeEngine([
+      "evil'; Calc; #.wav", // PowerShell quote escape
+      'evil`id`.mp3', // PowerShell subexpression
+      'evil; rm -rf .flac', // command separator
+      'evil$(id).aiff', // command substitution
+      'evil $(id).mp3', // substitution with a space
+      'ok name.mp3',
+      'ok.mp3',
+    ]),
+  )
+  expect(choices).toEqual([
+    { id: 'ok', file: 'assets/ok.mp3' },
+    { id: 'ok name', file: 'assets/ok name.mp3' },
+  ])
+})

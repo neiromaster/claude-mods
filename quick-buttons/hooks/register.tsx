@@ -328,7 +328,10 @@ export async function listSoundChoices($: EngineInterface): Promise<SoundChoice[
       .map(name => name.replace(/\/+$/, '').split('/').pop() ?? '')
       .filter(name => {
         const dot = name.lastIndexOf('.')
-        return dot > 0 && SOUND_EXTENSIONS.has(name.slice(dot).toLowerCase())
+        // Asset filenames are untrusted input that reaches spawned OS
+        // players, so anything outside a conservative allowlist is skipped
+        // rather than played.
+        return dot > 0 && /^[\w .-]+$/.test(name.slice(0, dot)) && SOUND_EXTENSIONS.has(name.slice(dot).toLowerCase())
       })
     // The shipped default first, then the rest alphabetically.
     return names
@@ -409,15 +412,26 @@ function toPsBase64(script: string): string {
   return btoa(bin)
 }
 
+// UTF-8 bytes -> base64 (btoa alone mishandles non-latin1 characters).
+function toBase64(text: string): string {
+  let bin = ''
+  for (const byte of new TextEncoder().encode(text)) bin += String.fromCharCode(byte)
+  return btoa(bin)
+}
+
 async function playWindowsAsset($: EngineInterface, file: string, exe = 'powershell'): Promise<void> {
   const path = `${$.plugin.root.replace(/\\/g, '/')}/${file}`
+  // The path never appears as PowerShell source text: it travels as a
+  // base64 constant (whose alphabet cannot break out of the string) and is
+  // decoded at runtime, so a hostile asset filename cannot inject commands.
+  const b64 = toBase64(path)
   // MediaPlayer decodes wav and mp3 natively; the sleep must outlast the
   // track, and mp3 assets are typically longer than the old wav chime.
   const ms = /\.mp3$/i.test(path) ? 3600 : 1800
   const script =
     `Add-Type -AssemblyName PresentationCore; ` +
     `$m = New-Object System.Windows.Media.MediaPlayer; ` +
-    `$m.Open([uri]'${path}'); ` +
+    `$m.Open([uri][Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}'))); ` +
     `$m.Play(); Start-Sleep -Milliseconds ${ms}`
   // The spawn returns a stream; iterating it to the end waits for the child
   // process to exit. Fire-and-forget spawns get reaped by the engine when the
