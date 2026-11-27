@@ -98,6 +98,26 @@ Common operations:
   restart (the folder is read in place). Visibility toggles from the settings
   pane apply instantly.
 
+## For agents
+
+When the user asks you to add, remove or reorder buttons, edit the catalog
+files — not the plugin:
+
+- **Never** edit the shipped `buttons.json` inside the installed plugin
+  folder (`.claude/plugins/...`) — plugin updates overwrite it. Use the
+  catalog layers instead.
+- Pick the file by scope: `~/.claude/quick-buttons.buttons.json` for buttons
+  in every project, `.claude/quick-buttons.json` in the project root for this
+  project only. Create it if missing (`{ "buttons": [ ... ] }`, with
+  `$schema` pointing at `buttons.schema.json` in the plugin folder).
+- To **reorder shipped buttons**, list them in the topmost layer as id-only
+  entries: `{ "id": "quick-buttons-compact" }` — definitions come from the
+  lower layer automatically.
+- To **hide a shipped button**, make it id-only too and rely on the settings
+  pane toggle (`$.store`) — a hidden flag survives plugin updates.
+- Tell the user to run `/reload-plugins` (or restart the session) after you
+  edit any catalog file.
+
 ## Settings pane
 
 The ⚙ button (or the `/buttons-config` command) opens a settings pane:
