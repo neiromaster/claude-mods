@@ -47,6 +47,13 @@
           "type": "string",
           "description": "Label of the sound toggle."
         }
+      },
+      "patternProperties": {
+        "^sound[A-Z][a-zA-Z]*$": {
+          "type": "string",
+          "description": "Picker label for a completion sound: the file's base name (e.g. chime.wav -> soundChime)."
+        }
+      }
       }
     }
   },

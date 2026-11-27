@@ -185,6 +185,9 @@ export interface UiStrings {
   buttons: string
   label: string
   sound: string
+  soundChime: string
+  soundNotification: string
+  soundStop: string
 }
 
 // Built-in strings are the fallback; locales.json overrides any field
@@ -200,6 +203,9 @@ const BUILTIN_UI: Record<string, UiStrings> = {
     buttons: 'кнопки',
     label: 'Русский',
     sound: 'звук',
+    soundChime: 'звон',
+    soundNotification: 'уведомление',
+    soundStop: 'стоп',
   },
   en: {
     on: 'on',
@@ -282,6 +288,91 @@ async function setSound($: EngineInterface, on: boolean): Promise<void> {
   await $.store.set('sound', on)
 }
 
+// ---- Completion sounds (auto-discovered in assets/) ----
+
+// Every audio file dropped into assets/ becomes a picker entry; the base
+// name is the choice id (chime.wav -> 'chime'). locales.json may override
+// the picker label per language with a sound<Name> key (chime -> soundChime).
+const SOUND_EXTENSIONS = new Set(['.wav', '.mp3', '.ogg', '.flac', '.aiff'])
+const DEFAULT_SOUND_ID = 'chime'
+
+interface SoundChoice {
+  id: string
+  file: string
+}
+
+function capitalize(name: string): string {
+  return name ? name[0].toUpperCase() + name.slice(1) : name
+}
+
+function soundLabelKey(id: string): string {
+  return `sound${capitalize(id)}`
+}
+
+function soundLabel(id: string, ui: UiStrings): string {
+  const custom = (ui as unknown as Record<string, string | undefined>)[soundLabelKey(id)]
+  return typeof custom === 'string' && custom !== '' ? custom : capitalize(id)
+}
+
+export async function listSoundChoices($: EngineInterface): Promise<SoundChoice[]> {
+  try {
+    const entries = await $.fs.list(`${$.plugin.root}/assets`)
+    const names: string[] = (Array.isArray(entries) ? entries : [])
+      .map(e =>
+        typeof e === 'string'
+          ? e
+          : typeof (e as { name?: unknown })?.name === 'string'
+            ? (e as { name: string }).name
+            : '',
+      )
+      .map(name => name.replace(/\/+$/, '').split('/').pop() ?? '')
+      .filter(name => {
+        const dot = name.lastIndexOf('.')
+        return dot > 0 && SOUND_EXTENSIONS.has(name.slice(dot).toLowerCase())
+      })
+    // The shipped default first, then the rest alphabetically.
+    return names
+      .map(name => {
+        const dot = name.lastIndexOf('.')
+        return { id: name.slice(0, dot).toLowerCase(), file: `assets/${name}` }
+      })
+      .sort((a, b) =>
+        a.id === DEFAULT_SOUND_ID ? -1 : b.id === DEFAULT_SOUND_ID ? 1 : a.id.localeCompare(b.id),
+      )
+  } catch {
+    return [{ id: DEFAULT_SOUND_ID, file: `assets/${DEFAULT_SOUND_ID}.wav` }]
+  }
+}
+
+const soundChoiceAtom = atom(
+  { plugin: 'quick-buttons', key: 'soundChoice' } as const,
+  DEFAULT_SOUND_ID,
+)
+
+async function seedSoundChoiceFromStore($: EngineInterface): Promise<void> {
+  try {
+    const stored = await $.store.get('soundChoice')
+    if (typeof stored === 'string' && stored !== '') {
+      await update($, soundChoiceAtom, () => stored)
+    }
+  } catch {
+    // store unavailable -> start with the default sound
+  }
+}
+
+async function setSoundChoice($: EngineInterface, id: string): Promise<void> {
+  await update($, soundChoiceAtom, () => id)
+  await $.store.set('soundChoice', id)
+}
+
+// Resolve the stored choice against the assets that actually exist, so a
+// removed file degrades to the shipped default instead of silence.
+async function resolveSoundChoice($: EngineInterface): Promise<SoundChoice> {
+  const choices = await listSoundChoices($)
+  const want = (await read($, soundChoiceAtom)) ?? DEFAULT_SOUND_ID
+  return choices.find(c => c.id === want) ?? choices.find(c => c.id === DEFAULT_SOUND_ID) ?? choices[0]
+}
+
 // ---- Top-level helpers ($ is traced only through these) ----
 
 async function openSettings($: EngineInterface, ui: UiStrings): Promise<void> {
@@ -318,21 +409,80 @@ function toPsBase64(script: string): string {
   return btoa(bin)
 }
 
-async function playWindowsChime($: EngineInterface): Promise<void> {
-  const wav = `${$.plugin.root.replace(/\\/g, '/')}/assets/notification.wav`
+async function playWindowsAsset($: EngineInterface, file: string, exe = 'powershell'): Promise<void> {
+  const path = `${$.plugin.root.replace(/\\/g, '/')}/${file}`
+  // MediaPlayer decodes wav and mp3 natively; the sleep must outlast the
+  // track, and mp3 assets are typically longer than the old wav chime.
+  const ms = /\.mp3$/i.test(path) ? 3600 : 1800
   const script =
     `Add-Type -AssemblyName PresentationCore; ` +
     `$m = New-Object System.Windows.Media.MediaPlayer; ` +
-    `$m.Open([uri]'${wav}'); ` +
-    `$m.Play(); Start-Sleep -Milliseconds 1800`
+    `$m.Open([uri]'${path}'); ` +
+    `$m.Play(); Start-Sleep -Milliseconds ${ms}`
   // The spawn returns a stream; iterating it to the end waits for the child
   // process to exit. Fire-and-forget spawns get reaped by the engine when the
   // hook's dispatch completes, which kills the player before it plays.
   const stream = $.process.spawn({
-    argv: ['powershell', '-NoProfile', '-NonInteractive', '-EncodedCommand', toPsBase64(script)],
+    argv: [exe, '-NoProfile', '-NonInteractive', '-EncodedCommand', toPsBase64(script)],
   })
   for await (const chunk of stream) {
     void chunk
+  }
+}
+
+// Play the chosen asset on the current platform. Windows plays through
+// MediaPlayer (no $.audio.play player on Windows terminals); WSL reaches
+// MediaPlayer through interop and falls back to the Windows system sound;
+// macOS uses $.audio.play (afplay); native Linux spawns a detached cascade
+// of standard players, trying mp3-capable ones first for mp3 assets.
+async function playCompletionSound($: EngineInterface, choice: SoundChoice): Promise<void> {
+  const os = (await $.env.get('OS')) ?? ''
+  if (os === 'Windows_NT') {
+    await playWindowsAsset($, choice.file)
+    return
+  }
+  const wsl = await $.env.get('WSL_DISTRO_NAME')
+  if (wsl) {
+    try {
+      await playWindowsAsset($, choice.file, 'powershell.exe')
+    } catch {
+      void (async () => {
+        try {
+          await $.process.spawn({
+            argv: [
+              'powershell.exe',
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              '[System.Media.SystemSounds]::Asterisk.Play(); Start-Sleep -Milliseconds 700',
+            ],
+          })
+        } catch {
+          // best-effort
+        }
+      })()
+    }
+    return
+  }
+  // Native Linux: detached cascade; macOS also reaches the last line, where
+  // $.audio.play (afplay) plays the file.
+  const isMp3 = /\.mp3$/i.test(choice.file)
+  const cascade = isMp3
+    ? 'nohup mpg123 "$1" >/dev/null 2>&1 || nohup mpg321 "$1" >/dev/null 2>&1 || nohup ffplay -nodisp -autoexit -loglevel quiet "$1" >/dev/null 2>&1 || nohup mpv --no-video "$1" >/dev/null 2>&1 || nohup paplay "$1" >/dev/null 2>&1 || nohup pw-play "$1" >/dev/null 2>&1 || true'
+    : 'nohup paplay "$1" >/dev/null 2>&1 || nohup aplay "$1" >/dev/null 2>&1 || nohup pw-play "$1" >/dev/null 2>&1 || true'
+  void (async () => {
+    try {
+      await $.process.spawn({
+        argv: ['sh', '-c', cascade, 'sh', `${$.plugin.root.replace(/\\/g, '/')}/${choice.file}`],
+      })
+    } catch {
+      // best-effort
+    }
+  })()
+  try {
+    await $.audio.play({ asset: choice.file })
+  } catch {
+    // macOS path; Linux plays via the cascade above
   }
 }
 
@@ -357,57 +507,10 @@ export const register: Register = (on, options) => {
     if (!soundOn || e.agentId || e.isAborted || e.durationMs < SOUND_MIN_MS) {
       return next(e)
     }
-    const os = (await $.env.get("OS")) ?? ''
-    if (os === 'Windows_NT') {
-      await playWindowsChime($).catch(err => {
-        $.ui.toast(`quick-buttons: chime failed (${String(err)})`)
-      })
-    } else {
-      // macOS: $.audio.play uses afplay. WSL: $.audio.play has no player,
-      // but powershell.exe is reachable through WSL interop -> the Windows
-      // system sound plays on the Windows side. Native Linux: a detached
-      // cascade of standard players (paplay, aplay, pw-play).
-      const wsl = await $.env.get("WSL_DISTRO_NAME")
-      if (wsl) {
-        void (async () => {
-          try {
-            await $.process.spawn({
-              argv: [
-                'powershell.exe',
-                '-NoProfile',
-                '-NonInteractive',
-                '-Command',
-                '[System.Media.SystemSounds]::Asterisk.Play(); Start-Sleep -Milliseconds 700',
-              ],
-            })
-          } catch {
-            // best-effort
-          }
-        })()
-      } else {
-        void (async () => {
-          try {
-            const wav = `${$.plugin.root.replace(/\\/g, '/')}/assets/notification.wav`
-            await $.process.spawn({
-              argv: [
-                'sh',
-                '-c',
-                'nohup paplay "$1" >/dev/null 2>&1 || nohup aplay "$1" >/dev/null 2>&1 || nohup pw-play "$1" >/dev/null 2>&1 || true',
-                'sh',
-                wav,
-              ],
-            })
-          } catch {
-            // best-effort
-          }
-        })()
-        try {
-          await $.audio.play({ asset: 'assets/notification.wav' })
-        } catch {
-          // macOS path; Linux plays via the cascade above
-        }
-      }
-    }
+    const choice = await resolveSoundChoice($)
+    await playCompletionSound($, choice).catch(err => {
+      $.ui.toast(`quick-buttons: chime failed (${String(err)})`)
+    })
     return next(e)
   })
 
@@ -417,6 +520,7 @@ export const register: Register = (on, options) => {
       description: 'Open the quick-buttons settings pane',
     })
     await seedStateFromStore($)
+    await seedSoundChoiceFromStore($)
     return next(e)
   })
 
@@ -493,6 +597,12 @@ export const register: Register = (on, options) => {
     const locales = await loadLocales($)
     const ui = uiStringsFor(locales, paneLang)
 
+    // Sound picker: every audio file in assets/ becomes an option; the
+    // chosen id is resolved against what actually exists.
+    const soundChoices = await listSoundChoices($)
+    const wantSound = (await read($, soundChoiceAtom)) ?? DEFAULT_SOUND_ID
+    const chosenSound = soundChoices.find(c => c.id === wantSound)?.id ?? soundChoices[0]?.id ?? DEFAULT_SOUND_ID
+
     const combined = { ...BUILTIN_UI, ...locales }
     const langOptions = Object.keys(combined).map(code => ({
       value: code,
@@ -567,6 +677,25 @@ export const register: Register = (on, options) => {
             {' '}
             <Text dimColor>{soundOn ? ui.on : ui.off}</Text>
           </Button>
+        </Box>
+
+        <Box flexDirection="column">
+          <Text dimColor bold>🔊 {ui.sound.toUpperCase()}</Text>
+          <Select
+            key="sound-choice"
+            label={ui.sound}
+            value={chosenSound}
+            options={soundChoices.map(c => ({ value: c.id, label: soundLabel(c.id, ui) }))}
+            onSelect={id => {
+              void (async () => {
+                await setSoundChoice($, id)
+                // Preview immediately, even with the sound toggled off —
+                // the point of picking is hearing what you get.
+                const picked = soundChoices.find(c => c.id === id)
+                if (picked) await playCompletionSound($, picked).catch(() => {})
+              })()
+            }}
+          />
         </Box>
 
         <Button key="close" variant="primary" label={ui.close} onPress={() => { void $.ui.close({ id: PANE }) }} />

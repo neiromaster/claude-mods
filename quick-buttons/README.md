@@ -182,14 +182,25 @@ Fields: `label` (picker name), `on`/`off` (toggle state words), `language`,
 ## Completion sound
 
 When a main-loop turn finishes (5s or longer, not interrupted, no subagents),
-a short notification chime plays — the 🔔/🔕 button in the band or the 🔊 row
-in the settings pane toggles it (persisted in `$.store`).
+the selected completion sound plays. The 🔔/🔕 button in the band or the 🔊
+row in the settings pane toggles sound on/off (persisted in `$.store`); the
+🔊 picker in the settings pane chooses *which* sound plays — selecting an
+entry plays it immediately as a preview.
 
-On Windows, `$.audio.play` has no player, so the mod plays the wav by
-spawning a PowerShell `MediaPlayer`. On macOS the built-in `$.audio.play`
-(afplay) is used. On Linux a detached cascade of `paplay` → `aplay` →
-`pw-play` is spawned. In WSL the cascade is skipped: `powershell.exe` is
-invoked through WSL interop and plays the Windows system sound.
+**Sounds are auto-discovered:** every `.wav`, `.mp3`, `.ogg`, `.flac` or
+`.aiff` file in the plugin's `assets/` folder becomes a picker entry, labeled
+by its base name (`chime.wav` → *Chime*). A language may override the label
+with a `sound<Name>` key in `locales.json` (`chime` → `"soundChime"`).
+The choice is stored by sound id, so removing a file simply falls back to
+the shipped `chime.wav`.
+
+On Windows, `$.audio.play` has no player, so the mod plays the file by
+spawning a PowerShell `MediaPlayer` (decodes both wav and mp3). On macOS the
+built-in `$.audio.play` (afplay) is used. On Linux a detached cascade of
+standard players is spawned — mp3-capable first (`mpg123` → `ffplay` →
+`mpv`) for mp3 assets, `paplay` → `aplay` → `pw-play` for the rest. In WSL
+the chosen file plays through `powershell.exe` and WSL interop, falling back
+to the Windows system sound if that fails.
 
 ## Setup
 

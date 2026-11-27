@@ -14,7 +14,10 @@
     "close": "cerrar",
     "settings": "ajustes",
     "hint": "Esc — cerrar · Tab/clic — alternar",
-    "buttons": "botones"
+    "buttons": "botones",
+    "soundChime": "timbre",
+    "soundNotification": "notificación",
+    "soundStop": "stop"
   },
   "fr": {
     "label": "Français",
@@ -24,6 +27,9 @@
     "close": "fermer",
     "settings": "réglages",
     "hint": "Échap — fermer · Tab/clic — basculer",
-    "buttons": "boutons"
+    "buttons": "boutons",
+    "soundChime": "carillon",
+    "soundNotification": "notification",
+    "soundStop": "stop"
   }
 }

@@ -1,6 +1,20 @@
 import { expect, test } from 'claude-code/testing'
+import type { EngineInterface } from 'claude-code'
 
-import { buttonsFor, mergeCatalogs, normalizeCatalog, type CatalogEntry } from './register'
+import {
+  buttonsFor,
+  listSoundChoices,
+  mergeCatalogs,
+  normalizeCatalog,
+  type CatalogEntry,
+} from './register'
+
+function fakeEngine(listResult: unknown): EngineInterface {
+  return {
+    plugin: { root: '/plugins/quick-buttons' },
+    fs: { list: () => Promise.resolve(listResult) },
+  } as unknown as EngineInterface
+}
 
 const JSON_CATALOG = [
   { id: 'da', title: 'yes', titles: { ru: 'да' } },
@@ -175,4 +189,32 @@ test('buttonsFor: an entry with no title and no lower layer falls back to the id
   expect(buttonsFor(cat, 'en', {})).toEqual([
     { id: 'solo', kind: 'prompt', label: 'solo', submit: 'solo' },
   ])
+})
+
+test('listSoundChoices: audio files become choices, default chime first', async () => {
+  const choices = await listSoundChoices(
+    fakeEngine(['chime.wav', 'stop.mp3', 'ding-dong.mp3', 'readme.txt', 'cover.png']),
+  )
+  expect(choices).toEqual([
+    { id: 'chime', file: 'assets/chime.wav' },
+    { id: 'ding-dong', file: 'assets/ding-dong.mp3' },
+    { id: 'stop', file: 'assets/stop.mp3' },
+  ])
+})
+
+test('listSoundChoices: uppercase extensions and entry objects are handled', async () => {
+  const choices = await listSoundChoices(
+    fakeEngine([{ name: 'Chime.WAV' }, { name: 'Bell.OGG' }]),
+  )
+  expect(choices).toEqual([
+    { id: 'chime', file: 'assets/Chime.WAV' },
+    { id: 'bell', file: 'assets/Bell.OGG' },
+  ])
+})
+
+test('listSoundChoices: no listing at all falls back to the shipped chime', async () => {
+  const choices = await listSoundChoices(
+    fakeEngine(Promise.reject(new Error('no dir'))),
+  )
+  expect(choices).toEqual([{ id: 'chime', file: 'assets/chime.wav' }])
 })

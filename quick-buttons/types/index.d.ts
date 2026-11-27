@@ -3,6 +3,7 @@ declare module 'claude-code' {
     'quick-buttons': {
       disabled: Record<string, boolean>
       sound: boolean
+      soundChoice: string
     }
   }
 }
