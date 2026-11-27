@@ -2,25 +2,25 @@
   "$schema": "./buttons.schema.json",
   "buttons": [
     {
-      "id": "yes",
+      "id": "quick-buttons-yes",
       "title": "Yes",
       "titles": { "en": "Yes", "ru": "Да", "es": "Sí", "fr": "Oui" },
       "texts": { "en": "Yes", "ru": "Да", "es": "Sí", "fr": "Oui" }
     },
     {
-      "id": "continue",
+      "id": "quick-buttons-continue",
       "title": "Continue",
       "titles": { "en": "Continue", "ru": "Продолжи", "es": "Continúa", "fr": "Continue" },
       "texts": { "en": "Continue", "ru": "Продолжи", "es": "Continúa", "fr": "Continue" }
     },
     {
-      "id": "commit",
+      "id": "quick-buttons-commit",
       "title": "Commit",
       "titles": { "en": "Commit", "ru": "Коммить", "es": "Commit", "fr": "Commit" },
       "texts": { "en": "Commit", "ru": "Коммить", "es": "Commit", "fr": "Commit" }
     },
     {
-      "id": "compact",
+      "id": "quick-buttons-compact",
       "title": "Compact context",
       "titles": {
         "en": "Compact context",
