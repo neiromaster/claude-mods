@@ -43,7 +43,7 @@ and append new ids. Missing files are skipped; if no layer provides anything,
 no buttons are drawn at all. `buttons.schema.json` gives editors validation
 and autocomplete — point `$schema` at it from any of the files.
 
-Each entry: `id`, `title` (fallback label), `titles` (per-language labels,
+Each entry: `id`, optional `title` (fallback label), `titles` (per-language labels,
 e.g. `{ "ru": "да", "es": "sí" }`), and how pressing submits:
 
 - `texts` — per-language prompt, e.g.
@@ -54,6 +54,20 @@ e.g. `{ "ru": "да", "es": "sí" }`), and how pressing submits:
 Precedence: `texts[active language]` → `text` → the label in the active
 language; `command` overrides all of them. With none of them, pressing
 submits the label itself.
+
+**`title` is optional.** An entry with only an `id` keeps its position but
+inherits `title`, `titles`, `text`, `texts` and `command` from the lower
+layers that define the same id — handy for reordering shipped buttons in
+your global/project file:
+
+```json
+{ "buttons": [{ "id": "quick-buttons-compact" }, { "id": "quick-buttons-yes" }] }
+```
+
+If no layer provides a title for the id, the id itself is used as the label.
+Shipped ids are prefixed `quick-buttons-` (`quick-buttons-yes`,
+`quick-buttons-continue`, `quick-buttons-commit`, `quick-buttons-compact`)
+to keep your own ids conflict-free.
 
 Example — a project file adding a code-review button:
 

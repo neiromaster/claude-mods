@@ -24,13 +24,22 @@ test('normalizeCatalog keeps valid entries and drops broken ones', () => {
   const cat = normalizeCatalog([
     { id: 'da', title: 'yes' },
     { title: 'no id' },
-    { id: 'no-title' },
+    { id: 'id-only' },
     'garbage',
     null,
     { id: 'x', title: 'X', titles: { ru: 'икс' }, texts: { ru: 'икс!' } },
   ])
-  expect(cat.map(b => b.id)).toEqual(['da', 'x'])
+  expect(cat.map(b => b.id)).toEqual(['da', 'id-only', 'x'])
   expect(cat[1]).toEqual({
+    id: 'id-only',
+    kind: 'prompt',
+    title: '',
+    titles: {},
+    text: undefined,
+    texts: undefined,
+    command: undefined,
+  })
+  expect(cat[2]).toEqual({
     id: 'x',
     kind: 'prompt',
     title: 'X',
@@ -140,4 +149,30 @@ test('mergeCatalogs deep-merges per-language maps for the same id', () => {
   const merged = mergeCatalogs([shipped, user])
   expect(merged[0]?.titles).toEqual({ en: 'yes', es: 'sí', fr: 'oui', ru: 'да' })
   expect(merged[0]?.texts).toEqual({ en: 'yes', es: 'sí', fr: 'oui', ru: 'да' })
+})
+
+test('mergeCatalogs: an id-only entry inherits title, texts and command from lower layers', () => {
+  const shipped = normalizeCatalog([
+    { id: 'quick-buttons-yes', title: 'Yes', titles: { ru: 'Да' }, texts: { ru: 'Да' } },
+    {
+      id: 'quick-buttons-compact',
+      title: 'Compact context',
+      command: 'compact',
+    },
+  ])
+  const global = normalizeCatalog([
+    { id: 'quick-buttons-compact' },
+    { id: 'quick-buttons-yes' },
+  ])
+  const merged = mergeCatalogs([shipped, global])
+  expect(merged.map(b => b.id)).toEqual(['quick-buttons-compact', 'quick-buttons-yes'])
+  expect(merged[0]).toMatchObject({ title: 'Compact context', command: 'compact' })
+  expect(merged[1]).toMatchObject({ title: 'Yes', titles: { ru: 'Да' }, texts: { ru: 'Да' } })
+})
+
+test('buttonsFor: an entry with no title and no lower layer falls back to the id as the label', () => {
+  const cat = normalizeCatalog([{ id: 'solo' }])
+  expect(buttonsFor(cat, 'en', {})).toEqual([
+    { id: 'solo', kind: 'prompt', label: 'solo', submit: 'solo' },
+  ])
 })

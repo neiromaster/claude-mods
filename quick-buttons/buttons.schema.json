@@ -10,7 +10,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "title"],
+        "required": ["id"],
         "properties": {
           "id": {
             "type": "string",
@@ -19,7 +19,7 @@
           },
           "title": {
             "type": "string",
-            "description": "Fallback label, used for languages missing from titles."
+            "description": "Fallback label, used for languages missing from titles. Optional: an id-only entry inherits title/texts/command from lower catalog layers; the label falls back to the id while nothing provides one."
           },
           "titles": {
             "type": "object",

@@ -30,9 +30,11 @@ export function normalizeCatalog(raw: unknown): CatalogEntry[] {
   for (const item of raw) {
     if (typeof item !== 'object' || item === null) continue
     const o = item as Record<string, unknown>
+    // title is optional: an id-only entry inherits the rest from lower layers
+    // at merge time (label falls back to the id while nothing provides one).
     const id = typeof o.id === 'string' && o.id !== '' ? o.id : undefined
-    const title = typeof o.title === 'string' && o.title !== '' ? o.title : undefined
-    if (!id || !title) continue
+    if (!id) continue
+    const title = typeof o.title === 'string' ? o.title : ''
     const titles: Record<string, string> = {}
     if (typeof o.titles === 'object' && o.titles !== null) {
       for (const [lg, v] of Object.entries(o.titles as Record<string, unknown>)) {
@@ -71,7 +73,7 @@ export function buttonsFor(
   const result: HudButton[] = []
   for (const b of catalog) {
     if (show?.[b.id] === false) continue
-    const label = b.titles[langKey] ?? b.title
+    const label = b.titles[langKey] ?? (b.title || b.id)
     const submit = b.command ? '/' + b.command : (b.texts?.[langKey] ?? b.text ?? label)
     result.push({ id: b.id, kind: b.kind, label, submit })
   }
@@ -532,7 +534,7 @@ export const register: Register = (on, options) => {
           <Text dimColor bold>🔘 {ui.buttons.toUpperCase()}</Text>
           {toggles.map(b => {
             const isOn = disabled[b.id] !== true
-            const name = b.titles[paneLang] ?? b.title
+            const name = b.titles[paneLang] ?? (b.title || b.id)
             return (
               <Box key={b.id} paddingLeft={1}>
                 <Button
