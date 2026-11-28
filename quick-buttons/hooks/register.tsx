@@ -21,6 +21,7 @@ export interface HudButton {
   kind: CatalogEntry['kind']
   label: string
   submit: string
+  command?: string
 }
 
 // Strict normalization: invalid entries are dropped, unknown fields are stripped.
@@ -75,7 +76,11 @@ export function buttonsFor(
     if (show?.[b.id] === false) continue
     const label = b.titles[langKey] ?? (b.title || b.id)
     const submit = b.command ? '/' + b.command : (b.texts?.[langKey] ?? b.text ?? label)
-    result.push({ id: b.id, kind: b.kind, label, submit })
+    result.push(
+      b.command
+        ? { id: b.id, kind: b.kind, label, submit, command: b.command }
+        : { id: b.id, kind: b.kind, label, submit },
+    )
   }
   return result
 }
@@ -558,8 +563,16 @@ export const register: Register = (on, options) => {
 
     const { Box, Button } = $.ui.resolve(e)
 
-    const send = (text: string) => async () => {
-      await $.prompt.submit({ text, asUser: true })
+    const send = (b: HudButton) => async () => {
+      // Command buttons dispatch from the catalog's structured command
+      // field through $.command.run — the engine rejects slash-prefixed
+      // text in $.prompt.submit ("run one with $.command.run"), and the
+      // name is passed without the slash.
+      if (b.command) {
+        await $.command.run({ command: b.command })
+      } else {
+        await $.prompt.submit({ text: b.submit, asUser: true })
+      }
     }
 
     // Prompt buttons on the left, the ⚙ settings button pressed to the right edge.
@@ -570,7 +583,7 @@ export const register: Register = (on, options) => {
       <Box width={e.props.bodyColumns} justifyContent="space-between">
         <Box columnGap={1}>
           {left.map(b => (
-            <Button key={b.id} label={b.label} onPress={send(b.submit)} />
+            <Button key={b.id} label={b.label} onPress={send(b)} />
           ))}
         </Box>
         <Box columnGap={1}>
