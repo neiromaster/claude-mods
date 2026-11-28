@@ -2,7 +2,9 @@ import { expect, test } from 'claude-code/testing'
 import type { EngineInterface } from 'claude-code'
 
 import {
+  applyProjectCommandGate,
   buttonsFor,
+  commandOrigins,
   listSoundChoices,
   mergeCatalogs,
   normalizeCatalog,
@@ -235,4 +237,48 @@ test('listSoundChoices: hostile filenames are skipped, never reaching players', 
     { id: 'ok', file: 'assets/ok.mp3' },
     { id: 'ok name', file: 'assets/ok name.mp3' },
   ])
+})
+
+test('commandOrigins: only ids whose command the project layer sets are project', () => {
+  const shipped = normalizeCatalog([{ id: 'a', title: 'A', command: 'a-cmd' }])
+  const global = normalizeCatalog([{ id: 'a' }, { id: 'b', title: 'B', command: 'b-cmd' }])
+  const project = normalizeCatalog([
+    { id: 'a' }, // id-only: inherits a's trusted command
+    { id: 'b', command: 'other-cmd' }, // overrides the command -> project
+    { id: 'c', title: 'C', command: 'c-cmd' }, // new project command
+    { id: 'd', title: 'D' }, // no command at all
+  ])
+  const origins = commandOrigins([
+    { trust: 'trusted', entries: shipped },
+    { trust: 'trusted', entries: global },
+    { trust: 'project', entries: project },
+  ])
+  expect(origins.get('a')).toBeUndefined()
+  expect(origins.get('b')).toBe('project')
+  expect(origins.get('c')).toBe('project')
+  expect(origins.get('d')).toBeUndefined()
+})
+
+test('applyProjectCommandGate: project commands without a project file degrade to prompts', async () => {
+  const entries = normalizeCatalog([
+    { id: 'a', title: 'A', command: 'kept-cmd' },
+    { id: 'b', title: 'B', command: 'dropped-cmd' },
+  ])
+  const origins = new Map([
+    ['a', 'project' as const],
+    ['b', 'project' as const],
+  ])
+  const gated = await applyProjectCommandGate(entries, origins, async name => name === 'kept-cmd')
+  expect(gated[0]).toMatchObject({ id: 'a', command: 'kept-cmd' })
+  expect(gated[1]).toMatchObject({ id: 'b', command: undefined })
+  // Degrading only clears the dispatch: the button still renders and can
+  // submit its label as a prompt.
+  const shown = buttonsFor(gated, 'en', {})
+  expect(shown[1]).toEqual({ id: 'b', kind: 'prompt', label: 'B', submit: 'B' })
+})
+
+test('applyProjectCommandGate: trusted origins pass untouched', async () => {
+  const entries = normalizeCatalog([{ id: 'a', title: 'A', command: 'compact' }])
+  const gated = await applyProjectCommandGate(entries, new Map(), async () => false)
+  expect(gated[0]).toMatchObject({ id: 'a', command: 'compact' })
 })

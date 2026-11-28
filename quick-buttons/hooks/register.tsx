@@ -151,17 +151,96 @@ async function homeDir($: EngineInterface): Promise<string | undefined> {
 }
 
 async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
-  const paths = [`${$.plugin.root}/buttons.json`]
   const home = await homeDir($)
-  if (home) paths.push(`${home}/.claude/quick-buttons.buttons.json`)
-  paths.push('.claude/quick-buttons.json')
+  const sources: Array<{ path: string; trust: CommandTrust }> = [
+    { path: `${$.plugin.root}/buttons.json`, trust: 'trusted' },
+    ...(home ? [{ path: `${home}/.claude/quick-buttons.buttons.json`, trust: 'trusted' as const }] : []),
+    { path: '.claude/quick-buttons.json', trust: 'project' },
+  ]
 
   const layers: CatalogEntry[][] = []
-  for (const path of paths) {
+  const tagged: Array<{ trust: CommandTrust; entries: CatalogEntry[] }> = []
+  for (const { path, trust } of sources) {
     const entries = await readCatalog($, path)
-    if (entries.length > 0) layers.push(entries)
+    if (entries.length > 0) {
+      layers.push(entries)
+      tagged.push({ trust, entries })
+    }
   }
-  return mergeCatalogs(layers)
+  const merged = mergeCatalogs(layers)
+  // A command set by the project layer must resolve to a command the
+  // project itself defines; otherwise the button degrades to a plain
+  // prompt submit instead of dispatching an arbitrary command name.
+  return applyProjectCommandGate(merged, commandOrigins(tagged), name =>
+    projectCommandExists($, projectCwd, name),
+  )
+}
+
+// ---- Command trust (project layer) ----
+
+export type CommandTrust = 'trusted' | 'project'
+
+// Which ids had their command set by a restricted (project) layer. An
+// id-only entry inherits whatever it inherits without changing the origin:
+// only a layer that actually sets the command field marks the origin.
+export function commandOrigins(
+  layers: Array<{ trust: CommandTrust; entries: CatalogEntry[] }>,
+): Map<string, CommandTrust> {
+  const origins = new Map<string, CommandTrust>()
+  for (const { trust, entries } of layers) {
+    if (trust !== 'project') continue
+    for (const b of entries) {
+      if (b.command !== undefined) origins.set(b.id, 'project')
+    }
+  }
+  return origins
+}
+
+export async function applyProjectCommandGate(
+  entries: CatalogEntry[],
+  origins: Map<string, CommandTrust>,
+  exists: (name: string) => Promise<boolean>,
+): Promise<CatalogEntry[]> {
+  const result: CatalogEntry[] = []
+  for (const b of entries) {
+    if (origins.get(b.id) === 'project' && b.command !== undefined && !(await exists(b.command))) {
+      result.push({ ...b, command: undefined })
+    } else {
+      result.push(b)
+    }
+  }
+  return result
+}
+
+// Project-defined commands live in <cwd>/.claude/commands (<name>.md or a
+// <name>/ directory) and <cwd>/.claude/skills/<name>/SKILL.md. Args are not
+// part of the name; a project: namespace prefix is accepted. Fail-closed:
+// without a project directory nothing project-originated dispatches.
+async function projectCommandExists(
+  $: EngineInterface,
+  cwd: string | undefined,
+  command: string,
+): Promise<boolean> {
+  if (!cwd) return false
+  const name = command.trim().split(/\s+/)[0]!.replace(/^project:/, '').replace(/\/+$/, '')
+  if (!/^[\w.-]+$/.test(name)) return false
+  const base = `${cwd.replace(/\/+$/, '')}/.claude`
+  try {
+    if (await $.fs.exists(`${base}/commands/${name}.md`)) return true
+    if (await $.fs.exists(`${base}/skills/${name}/SKILL.md`)) return true
+    const entries = await $.fs.list(`${base}/commands`)
+    return (Array.isArray(entries) ? entries : []).some(e => {
+      const n =
+        typeof e === 'string'
+          ? e.replace(/\/+$/, '').split('/').pop() ?? ''
+          : typeof (e as { name?: unknown })?.name === 'string'
+            ? (e as { name: string }).name.replace(/\/+$/, '')
+            : ''
+      return n === name
+    })
+  } catch {
+    return false
+  }
 }
 
 // The settings button is built in, it does not live in buttons.json.
@@ -256,6 +335,9 @@ async function loadLocales($: EngineInterface): Promise<Record<string, Partial<U
 }
 
 // ---- Visibility state ----
+
+// Project directory from session.start; anchors the command trust gate.
+let projectCwd: string | undefined
 
 // Renders reading the atom are subscribed and redraw on writes by themselves.
 const disabledAtom = atom({ plugin: 'quick-buttons', key: 'disabled' } as const, {})
@@ -534,6 +616,9 @@ export const register: Register = (on, options) => {
   })
 
   on('session.start', async ($, e, next) => {
+    // The project directory anchors the command trust gate: project-layer
+    // buttons may only dispatch commands the project itself defines.
+    projectCwd = typeof e.cwd === 'string' ? e.cwd : undefined
     await $.command.register({
       name: 'buttons-config',
       description: 'Open the quick-buttons settings pane',
