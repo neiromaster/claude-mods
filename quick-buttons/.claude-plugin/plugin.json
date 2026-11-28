@@ -1,6 +1,6 @@
 {
   "name": "quick-buttons",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "types": "./types/index.d.ts",
   "description": "Quick prompt buttons in the band above the prompt, with a settings pane and a completion sound",
   "license": "MIT",
