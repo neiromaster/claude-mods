@@ -231,20 +231,28 @@ export async function applyProjectCommandGate(
 }
 
 // Project-defined commands live in <cwd>/.claude/commands (<name>.md file or
-// a <name>/ directory holding at least one .md) and
+// a <name>/ directory whose .md entries are files) and
 // <cwd>/.claude/skills/<name>/SKILL.md (a file). Existence alone is not
-// proof: entries are type-checked via $.fs.stat so a directory named
-// `<name>.md` or an extensionless file does not count as a command. Args are
-// not part of the name; a project: namespace prefix is accepted. Fail-closed:
-// without a project directory nothing project-originated dispatches, and an
-// engine without $.fs.stat falls back to plain existence checks.
+// proof: entries are type-checked via $.fs.stat, so a directory named
+// `<name>.md`, an extensionless file, or a directory with a `.md` suffix does
+// not count as a command. Args are not part of the name; a project: namespace
+// prefix is accepted. Fail-closed: without a project directory nothing
+// project-originated dispatches. Two strictness tiers:
+// - engine with a $.fs.stat function -> strict: every candidate is
+//   type-checked, and a stat failure or unusable result rejects (no fallback);
+// - engine without any stat function -> legacy plain existence checks, so
+//   older engines keep working.
 type StatKind = 'file' | 'dir' | 'missing' | 'unknown'
 
+// Stat a path and classify it. Assumes an engine that has a stat function:
+// a rejected stat or an unusable result is 'missing'/'unknown', never a
+// reason to fall back to existence checks.
 async function statKind($: EngineInterface, path: string): Promise<StatKind> {
-  const stat = ($.fs as { stat?: unknown }).stat
-  if (typeof stat !== 'function') return 'unknown'
   try {
-    const s = (await (stat as (p: string) => Promise<unknown>).call($.fs, path)) as
+    const stat = ($.fs as { stat?: unknown }).stat as
+      | ((p: string) => Promise<unknown>)
+      | undefined
+    const s = (await stat?.call($.fs, path)) as
       | { isFile?: () => boolean; isDirectory?: () => boolean }
       | null
       | undefined
@@ -257,11 +265,16 @@ async function statKind($: EngineInterface, path: string): Promise<StatKind> {
   }
 }
 
-// `kind` is what the trusted check requires; 'unknown' (engine without a
-// usable stat) falls back to plain existence so older engines keep working.
-function kindSatisfies(kind: StatKind, want: 'file' | 'dir'): boolean {
-  if (kind === 'unknown') return true
-  return kind === want
+// Basename of a $.fs.list entry (strings and {name} objects), trimmed of
+// trailing slashes.
+function listEntryName(e: unknown): string {
+  const raw =
+    typeof e === 'string'
+      ? e
+      : typeof (e as { name?: unknown })?.name === 'string'
+        ? (e as { name: string }).name
+        : ''
+  return raw.replace(/\/+$/, '').split('/').pop() ?? ''
 }
 
 export async function projectCommandExists(
@@ -273,39 +286,34 @@ export async function projectCommandExists(
   const name = command.trim().split(/\s+/)[0]!.replace(/^project:/, '').replace(/\/+$/, '')
   if (!/^[\w.-]+$/.test(name)) return false
   const base = `${cwd.replace(/\/+$/, '')}/.claude`
+  const hasStat = typeof ($.fs as { stat?: unknown }).stat === 'function'
   try {
-    const mdKind = await statKind($, `${base}/commands/${name}.md`)
-    if (mdKind === 'file') return true
-    if (mdKind === 'missing' && (await $.fs.exists(`${base}/commands/${name}.md`))) return true
-    if (mdKind === 'unknown' && (await $.fs.exists(`${base}/commands/${name}.md`))) return true
-    const skillKind = await statKind($, `${base}/skills/${name}/SKILL.md`)
-    if (skillKind === 'file') return true
-    if (skillKind === 'missing' || skillKind === 'unknown') {
-      if (await $.fs.exists(`${base}/skills/${name}/SKILL.md`)) return true
+    const mdPath = `${base}/commands/${name}.md`
+    if (hasStat) {
+      if ((await statKind($, mdPath)) === 'file') return true
+    } else if (await $.fs.exists(mdPath)) {
+      return true
+    }
+    const skillPath = `${base}/skills/${name}/SKILL.md`
+    if (hasStat) {
+      if ((await statKind($, skillPath)) === 'file') return true
+    } else if (await $.fs.exists(skillPath)) {
+      return true
     }
     const entries = await $.fs.list(`${base}/commands`)
-    const match = (Array.isArray(entries) ? entries : []).some(e => {
-      const n =
-        typeof e === 'string'
-          ? e.replace(/\/+$/, '').split('/').pop() ?? ''
-          : typeof (e as { name?: unknown })?.name === 'string'
-            ? (e as { name: string }).name.replace(/\/+$/, '')
-            : ''
-      return n === name
-    })
+    const match = (Array.isArray(entries) ? entries : []).some(e => listEntryName(e) === name)
     if (!match) return false
-    // A directory entry only counts when it is actually a directory holding
-    // at least one .md command file; anything else is junk, not a command.
-    const dirKind = await statKind($, `${base}/commands/${name}`)
-    if (!kindSatisfies(dirKind, 'dir')) return false
-    if (dirKind === 'dir') {
-      const inner = await $.fs.list(`${base}/commands/${name}`)
-      const names = (Array.isArray(inner) ? inner : []).map(e =>
-        typeof e === 'string' ? e : ((e as { name?: unknown })?.name as string) ?? '',
-      )
-      return names.some(n => n.endsWith('.md'))
+    if (!hasStat) return true
+    // A directory entry only counts when it is actually a directory whose
+    // .md entries are files; anything else is junk, not a command.
+    if ((await statKind($, `${base}/commands/${name}`)) !== 'dir') return false
+    const inner = await $.fs.list(`${base}/commands/${name}`)
+    for (const e of Array.isArray(inner) ? inner : []) {
+      const n = listEntryName(e)
+      if (!n.endsWith('.md')) continue
+      if ((await statKind($, `${base}/commands/${name}/${n}`)) === 'file') return true
     }
-    return true
+    return false
   } catch {
     return false
   }

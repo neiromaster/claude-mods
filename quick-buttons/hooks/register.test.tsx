@@ -357,12 +357,35 @@ test('projectCommandExists: an extensionless file is not a command', async () =>
   await expect(projectCommandExists($, PROJ, 'review')).resolves.toBe(false)
 })
 
-test('projectCommandExists: a command directory must hold at least one .md', async () => {
+test('projectCommandExists: a command directory must hold .md files, not .md dirs', async () => {
   const p = gatePaths('review')
   const empty = gateEngine({ [p.dir]: 'dir' }, { [p.commands]: ['review'], [p.dir]: [] })
   await expect(projectCommandExists(empty, PROJ, 'review')).resolves.toBe(false)
-  const filled = gateEngine({ [p.dir]: 'dir' }, { [p.commands]: ['review'], [p.dir]: ['run.md'] })
+  const filled = gateEngine(
+    { [p.dir]: 'dir', [`${p.dir}/run.md`]: 'file' },
+    { [p.commands]: ['review'], [p.dir]: ['run.md'] },
+  )
   await expect(projectCommandExists(filled, PROJ, 'review')).resolves.toBe(true)
+  const dirChild = gateEngine(
+    { [p.dir]: 'dir', [`${p.dir}/run.md`]: 'dir' },
+    { [p.commands]: ['review'], [p.dir]: ['run.md'] },
+  )
+  await expect(projectCommandExists(dirChild, PROJ, 'review')).resolves.toBe(false)
+})
+
+test('projectCommandExists: a failing stat never falls back to existence checks', async () => {
+  const p = gatePaths('review')
+  // stat is present but always rejects; exists claims everything is there.
+  const $ = {
+    plugin: { root: '/plugins/quick-buttons' },
+    fs: {
+      exists: () => Promise.resolve(true),
+      stat: () => Promise.reject(new Error('EACCES')),
+      list: (path: string) =>
+        Promise.resolve(path === p.commands ? ['review'] : ['run.md']),
+    },
+  } as unknown as EngineInterface
+  await expect(projectCommandExists($, PROJ, 'review')).resolves.toBe(false)
 })
 
 test('projectCommandExists: args and the project: prefix are stripped', async () => {
