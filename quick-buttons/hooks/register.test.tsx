@@ -395,16 +395,17 @@ test('projectCommandExists: args and the project: prefix are stripped', async ()
   await expect(projectCommandExists($, PROJ, 'project:review')).resolves.toBe(true)
 })
 
-test('projectCommandExists: an engine without stat falls back to existence checks', async () => {
-  const p = gatePaths('review')
+test('projectCommandExists: an engine without stat fails closed', async () => {
   const $ = {
     plugin: { root: '/plugins/quick-buttons' },
     fs: {
-      exists: (path: string) => Promise.resolve(path === p.md),
+      exists: () => Promise.resolve(true),
       list: () => Promise.resolve([]),
     },
   } as unknown as EngineInterface
-  await expect(projectCommandExists($, PROJ, 'review')).resolves.toBe(true)
+  // Calling the missing stat throws inside statKind and is treated as
+  // missing, so no candidate is confirmed even though exists returns true.
+  await expect(projectCommandExists($, PROJ, 'review')).resolves.toBe(false)
 })
 
 test('projectCommandExists: no project directory fails closed', async () => {

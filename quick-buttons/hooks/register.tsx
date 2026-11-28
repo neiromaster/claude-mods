@@ -237,22 +237,15 @@ export async function applyProjectCommandGate(
 // `<name>.md`, an extensionless file, or a directory with a `.md` suffix does
 // not count as a command. Args are not part of the name; a project: namespace
 // prefix is accepted. Fail-closed: without a project directory nothing
-// project-originated dispatches. Two strictness tiers:
-// - engine with a $.fs.stat function -> strict: every candidate is
-//   type-checked, and a stat failure or unusable result rejects (no fallback);
-// - engine without any stat function -> legacy plain existence checks, so
-//   older engines keep working.
+// project-originated dispatches; if stat fails or the engine lacks it, the
+// candidate is rejected. Note: engine capability members must be *called*
+// ($.fs.stat(path)) and may never be read or passed as values, so no
+// feature-detection of stat is possible - the call itself is the probe.
 type StatKind = 'file' | 'dir' | 'missing' | 'unknown'
 
-// Stat a path and classify it. Assumes an engine that has a stat function:
-// a rejected stat or an unusable result is 'missing'/'unknown', never a
-// reason to fall back to existence checks.
 async function statKind($: EngineInterface, path: string): Promise<StatKind> {
   try {
-    const stat = ($.fs as { stat?: unknown }).stat as
-      | ((p: string) => Promise<unknown>)
-      | undefined
-    const s = (await stat?.call($.fs, path)) as
+    const s = (await $.fs.stat(path)) as
       | { isFile?: () => boolean; isDirectory?: () => boolean }
       | null
       | undefined
@@ -286,24 +279,12 @@ export async function projectCommandExists(
   const name = command.trim().split(/\s+/)[0]!.replace(/^project:/, '').replace(/\/+$/, '')
   if (!/^[\w.-]+$/.test(name)) return false
   const base = `${cwd.replace(/\/+$/, '')}/.claude`
-  const hasStat = typeof ($.fs as { stat?: unknown }).stat === 'function'
   try {
-    const mdPath = `${base}/commands/${name}.md`
-    if (hasStat) {
-      if ((await statKind($, mdPath)) === 'file') return true
-    } else if (await $.fs.exists(mdPath)) {
-      return true
-    }
-    const skillPath = `${base}/skills/${name}/SKILL.md`
-    if (hasStat) {
-      if ((await statKind($, skillPath)) === 'file') return true
-    } else if (await $.fs.exists(skillPath)) {
-      return true
-    }
+    if ((await statKind($, `${base}/commands/${name}.md`)) === 'file') return true
+    if ((await statKind($, `${base}/skills/${name}/SKILL.md`)) === 'file') return true
     const entries = await $.fs.list(`${base}/commands`)
     const match = (Array.isArray(entries) ? entries : []).some(e => listEntryName(e) === name)
     if (!match) return false
-    if (!hasStat) return true
     // A directory entry only counts when it is actually a directory whose
     // .md entries are files; anything else is junk, not a command.
     if ((await statKind($, `${base}/commands/${name}`)) !== 'dir') return false
