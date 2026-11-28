@@ -8,6 +8,7 @@ import {
   listSoundChoices,
   mergeCatalogs,
   normalizeCatalog,
+  projectCommandExists,
   type CatalogEntry,
 } from './register'
 
@@ -15,6 +16,28 @@ function fakeEngine(listResult: unknown): EngineInterface {
   return {
     plugin: { root: '/plugins/quick-buttons' },
     fs: { list: () => Promise.resolve(listResult) },
+  } as unknown as EngineInterface
+}
+
+// A fake engine for the command trust gate: `types` maps an absolute path to
+// 'file' | 'dir' (missing paths stat-reject like ENOENT), `dirs` maps a
+// directory path to its listed entry names.
+function gateEngine(
+  types: Record<string, 'file' | 'dir'>,
+  dirs: Record<string, string[]> = {},
+): EngineInterface {
+  const node = (kind: 'file' | 'dir') =>
+    kind === 'file'
+      ? { isFile: () => true, isDirectory: () => false }
+      : { isFile: () => false, isDirectory: () => true }
+  return {
+    plugin: { root: '/plugins/quick-buttons' },
+    fs: {
+      exists: (p: string) => Promise.resolve(types[p] !== undefined),
+      stat: (p: string) =>
+        types[p] === undefined ? Promise.reject(new Error('ENOENT')) : Promise.resolve(node(types[p])),
+      list: (p: string) => Promise.resolve(dirs[p] ?? []),
+    },
   } as unknown as EngineInterface
 }
 
@@ -239,14 +262,15 @@ test('listSoundChoices: hostile filenames are skipped, never reaching players', 
   ])
 })
 
-test('commandOrigins: only ids whose command the project layer sets are project', () => {
+test('commandOrigins: only id-only reorder entries keep inherited trust', () => {
   const shipped = normalizeCatalog([{ id: 'a', title: 'A', command: 'a-cmd' }])
   const global = normalizeCatalog([{ id: 'a' }, { id: 'b', title: 'B', command: 'b-cmd' }])
   const project = normalizeCatalog([
-    { id: 'a' }, // id-only: inherits a's trusted command
+    { id: 'a' }, // pure id-only reorder: keeps a's trusted command
     { id: 'b', command: 'other-cmd' }, // overrides the command -> project
     { id: 'c', title: 'C', command: 'c-cmd' }, // new project command
-    { id: 'd', title: 'D' }, // no command at all
+    { id: 'd', title: 'D' }, // no command, but relabels -> project
+    { id: 'e', texts: { en: 'go' } }, // overrides submission text -> project
   ])
   const origins = commandOrigins([
     { trust: 'trusted', entries: shipped },
@@ -256,7 +280,27 @@ test('commandOrigins: only ids whose command the project layer sets are project'
   expect(origins.get('a')).toBeUndefined()
   expect(origins.get('b')).toBe('project')
   expect(origins.get('c')).toBe('project')
-  expect(origins.get('d')).toBeUndefined()
+  expect(origins.get('d')).toBe('project')
+  expect(origins.get('e')).toBe('project')
+})
+
+test('commandOrigins: a project entry that relabels a global command loses its trust', () => {
+  const global = normalizeCatalog([{ id: 'b', title: 'B', command: 'b-cmd' }])
+  const project = normalizeCatalog([{ id: 'b', title: 'Click me' }]) // no command declared
+  const origins = commandOrigins([
+    { trust: 'trusted', entries: global },
+    { trust: 'project', entries: project },
+  ])
+  expect(origins.get('b')).toBe('project')
+})
+
+test('applyProjectCommandGate: a relabelled inherited command degrades unless project-defined', async () => {
+  const entries = normalizeCatalog([{ id: 'b', title: 'Click me', command: 'b-cmd' }])
+  const origins = new Map([['b', 'project' as const]])
+  const gated = await applyProjectCommandGate(entries, origins, async name => name === 'b-cmd')
+  expect(gated[0]).toMatchObject({ id: 'b', command: 'b-cmd' })
+  const gated2 = await applyProjectCommandGate(entries, origins, async () => false)
+  expect(gated2[0]).toMatchObject({ id: 'b', command: undefined })
 })
 
 test('applyProjectCommandGate: project commands without a project file degrade to prompts', async () => {
@@ -281,4 +325,67 @@ test('applyProjectCommandGate: trusted origins pass untouched', async () => {
   const entries = normalizeCatalog([{ id: 'a', title: 'A', command: 'compact' }])
   const gated = await applyProjectCommandGate(entries, new Map(), async () => false)
   expect(gated[0]).toMatchObject({ id: 'a', command: 'compact' })
+})
+
+const PROJ = '/proj'
+
+function gatePaths(name: string) {
+  return {
+    md: `${PROJ}/.claude/commands/${name}.md`,
+    dir: `${PROJ}/.claude/commands/${name}`,
+    skill: `${PROJ}/.claude/skills/${name}/SKILL.md`,
+    commands: `${PROJ}/.claude/commands`,
+  }
+}
+
+test('projectCommandExists: a .md command file resolves', async () => {
+  const p = gatePaths('review')
+  const $ = gateEngine({ [p.md]: 'file' })
+  await expect(projectCommandExists($, PROJ, 'review')).resolves.toBe(true)
+})
+
+test('projectCommandExists: a directory named <name>.md is not a command', async () => {
+  const p = gatePaths('review')
+  const $ = gateEngine({ [p.md]: 'dir' }, { [p.commands]: ['review.md'] })
+  await expect(projectCommandExists($, PROJ, 'review')).resolves.toBe(false)
+})
+
+test('projectCommandExists: an extensionless file is not a command', async () => {
+  const p = gatePaths('review')
+  // `review` (no extension) matches the commands listing but stats as a file.
+  const $ = gateEngine({ [`${p.dir}`]: 'file' }, { [p.commands]: ['review'] })
+  await expect(projectCommandExists($, PROJ, 'review')).resolves.toBe(false)
+})
+
+test('projectCommandExists: a command directory must hold at least one .md', async () => {
+  const p = gatePaths('review')
+  const empty = gateEngine({ [p.dir]: 'dir' }, { [p.commands]: ['review'], [p.dir]: [] })
+  await expect(projectCommandExists(empty, PROJ, 'review')).resolves.toBe(false)
+  const filled = gateEngine({ [p.dir]: 'dir' }, { [p.commands]: ['review'], [p.dir]: ['run.md'] })
+  await expect(projectCommandExists(filled, PROJ, 'review')).resolves.toBe(true)
+})
+
+test('projectCommandExists: args and the project: prefix are stripped', async () => {
+  const p = gatePaths('review')
+  const $ = gateEngine({ [p.md]: 'file' })
+  await expect(projectCommandExists($, PROJ, 'review extra args')).resolves.toBe(true)
+  await expect(projectCommandExists($, PROJ, 'project:review')).resolves.toBe(true)
+})
+
+test('projectCommandExists: an engine without stat falls back to existence checks', async () => {
+  const p = gatePaths('review')
+  const $ = {
+    plugin: { root: '/plugins/quick-buttons' },
+    fs: {
+      exists: (path: string) => Promise.resolve(path === p.md),
+      list: () => Promise.resolve([]),
+    },
+  } as unknown as EngineInterface
+  await expect(projectCommandExists($, PROJ, 'review')).resolves.toBe(true)
+})
+
+test('projectCommandExists: no project directory fails closed', async () => {
+  const $ = gateEngine({})
+  await expect(projectCommandExists($, undefined, 'review')).resolves.toBe(false)
+  await expect(projectCommandExists($, PROJ, '../escape')).resolves.toBe(false)
 })

@@ -46,12 +46,15 @@ and autocomplete — point `$schema` at it from any of the files.
 **Command trust.** Shipped and global buttons may point at any command. A
 command set by the *project* layer (`.claude/quick-buttons.json`, shareable
 with the repo) only dispatches when it resolves to a command the project
-itself defines (`.claude/commands/<name>.md` or `<name>/`,
-`.claude/skills/<name>/SKILL.md`); otherwise the button degrades to a plain
-prompt submit. Project-layer buttons that only *reorder* shipped or global
-buttons keep their inherited commands. A repo can still point a button at a
-command it defines itself — that is the standard project-trust boundary, the
-same as running any project slash command.
+itself defines (`.claude/commands/<name>.md`, a `<name>/` directory holding
+`.md` files, or `.claude/skills/<name>/SKILL.md`); otherwise the button
+degrades to a plain prompt submit. Project-layer buttons that only *reorder*
+shipped or global buttons — id-only entries — keep their inherited commands;
+any project entry that overrides a field (label, text, command) must have its
+command defined in the project itself, so a repo cannot relabel a global
+command button into something misleading and keep its dispatch. A repo can
+still point a button at a command it defines itself — that is the standard
+project-trust boundary, the same as running any project slash command.
 
 Each entry: `id`, optional `title` (fallback label), `titles` (per-language labels,
 e.g. `{ "ru": "да", "es": "sí" }`), and how pressing submits:

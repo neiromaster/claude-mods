@@ -150,7 +150,10 @@ async function homeDir($: EngineInterface): Promise<string | undefined> {
   return unix ?? undefined
 }
 
-async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
+async function loadButtons(
+  $: EngineInterface,
+  cwd: string | undefined = projectCwd,
+): Promise<CatalogEntry[]> {
   const home = await homeDir($)
   const sources: Array<{ path: string; trust: CommandTrust }> = [
     { path: `${$.plugin.root}/buttons.json`, trust: 'trusted' },
@@ -172,7 +175,7 @@ async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
   // project itself defines; otherwise the button degrades to a plain
   // prompt submit instead of dispatching an arbitrary command name.
   return applyProjectCommandGate(merged, commandOrigins(tagged), name =>
-    projectCommandExists($, projectCwd, name),
+    projectCommandExists($, cwd, name),
   )
 }
 
@@ -180,9 +183,24 @@ async function loadButtons($: EngineInterface): Promise<CatalogEntry[]> {
 
 export type CommandTrust = 'trusted' | 'project'
 
-// Which ids had their command set by a restricted (project) layer. An
-// id-only entry inherits whatever it inherits without changing the origin:
-// only a layer that actually sets the command field marks the origin.
+// A layer entry that carries no payload of its own: a pure reorder entry.
+// Anything else — a title, texts, a command — is a definition, not a reorder.
+function isPureReorder(b: CatalogEntry): boolean {
+  return (
+    b.command === undefined &&
+    b.text === undefined &&
+    b.texts === undefined &&
+    b.title === '' &&
+    Object.keys(b.titles).length === 0
+  )
+}
+
+// Which ids had their command set (or kept) by a restricted (project) layer.
+// A pure id-only reorder entry inherits whatever it inherits without changing
+// the origin. But a project entry that *overrides any other field* while
+// leaving the command inherited is a definition too: relabelling a global
+// command button must not preserve the inherited dispatch authority, so the
+// id is marked project and its command has to resolve in the project itself.
 export function commandOrigins(
   layers: Array<{ trust: CommandTrust; entries: CatalogEntry[] }>,
 ): Map<string, CommandTrust> {
@@ -190,7 +208,7 @@ export function commandOrigins(
   for (const { trust, entries } of layers) {
     if (trust !== 'project') continue
     for (const b of entries) {
-      if (b.command !== undefined) origins.set(b.id, 'project')
+      if (b.command !== undefined || !isPureReorder(b)) origins.set(b.id, 'project')
     }
   }
   return origins
@@ -212,11 +230,41 @@ export async function applyProjectCommandGate(
   return result
 }
 
-// Project-defined commands live in <cwd>/.claude/commands (<name>.md or a
-// <name>/ directory) and <cwd>/.claude/skills/<name>/SKILL.md. Args are not
-// part of the name; a project: namespace prefix is accepted. Fail-closed:
-// without a project directory nothing project-originated dispatches.
-async function projectCommandExists(
+// Project-defined commands live in <cwd>/.claude/commands (<name>.md file or
+// a <name>/ directory holding at least one .md) and
+// <cwd>/.claude/skills/<name>/SKILL.md (a file). Existence alone is not
+// proof: entries are type-checked via $.fs.stat so a directory named
+// `<name>.md` or an extensionless file does not count as a command. Args are
+// not part of the name; a project: namespace prefix is accepted. Fail-closed:
+// without a project directory nothing project-originated dispatches, and an
+// engine without $.fs.stat falls back to plain existence checks.
+type StatKind = 'file' | 'dir' | 'missing' | 'unknown'
+
+async function statKind($: EngineInterface, path: string): Promise<StatKind> {
+  const stat = ($.fs as { stat?: unknown }).stat
+  if (typeof stat !== 'function') return 'unknown'
+  try {
+    const s = (await (stat as (p: string) => Promise<unknown>).call($.fs, path)) as
+      | { isFile?: () => boolean; isDirectory?: () => boolean }
+      | null
+      | undefined
+    if (s === null || s === undefined) return 'missing'
+    if (typeof s.isFile === 'function' && s.isFile()) return 'file'
+    if (typeof s.isDirectory === 'function' && s.isDirectory()) return 'dir'
+    return 'unknown'
+  } catch {
+    return 'missing'
+  }
+}
+
+// `kind` is what the trusted check requires; 'unknown' (engine without a
+// usable stat) falls back to plain existence so older engines keep working.
+function kindSatisfies(kind: StatKind, want: 'file' | 'dir'): boolean {
+  if (kind === 'unknown') return true
+  return kind === want
+}
+
+export async function projectCommandExists(
   $: EngineInterface,
   cwd: string | undefined,
   command: string,
@@ -226,10 +274,17 @@ async function projectCommandExists(
   if (!/^[\w.-]+$/.test(name)) return false
   const base = `${cwd.replace(/\/+$/, '')}/.claude`
   try {
-    if (await $.fs.exists(`${base}/commands/${name}.md`)) return true
-    if (await $.fs.exists(`${base}/skills/${name}/SKILL.md`)) return true
+    const mdKind = await statKind($, `${base}/commands/${name}.md`)
+    if (mdKind === 'file') return true
+    if (mdKind === 'missing' && (await $.fs.exists(`${base}/commands/${name}.md`))) return true
+    if (mdKind === 'unknown' && (await $.fs.exists(`${base}/commands/${name}.md`))) return true
+    const skillKind = await statKind($, `${base}/skills/${name}/SKILL.md`)
+    if (skillKind === 'file') return true
+    if (skillKind === 'missing' || skillKind === 'unknown') {
+      if (await $.fs.exists(`${base}/skills/${name}/SKILL.md`)) return true
+    }
     const entries = await $.fs.list(`${base}/commands`)
-    return (Array.isArray(entries) ? entries : []).some(e => {
+    const match = (Array.isArray(entries) ? entries : []).some(e => {
       const n =
         typeof e === 'string'
           ? e.replace(/\/+$/, '').split('/').pop() ?? ''
@@ -238,6 +293,19 @@ async function projectCommandExists(
             : ''
       return n === name
     })
+    if (!match) return false
+    // A directory entry only counts when it is actually a directory holding
+    // at least one .md command file; anything else is junk, not a command.
+    const dirKind = await statKind($, `${base}/commands/${name}`)
+    if (!kindSatisfies(dirKind, 'dir')) return false
+    if (dirKind === 'dir') {
+      const inner = await $.fs.list(`${base}/commands/${name}`)
+      const names = (Array.isArray(inner) ? inner : []).map(e =>
+        typeof e === 'string' ? e : ((e as { name?: unknown })?.name as string) ?? '',
+      )
+      return names.some(n => n.endsWith('.md'))
+    }
+    return true
   } catch {
     return false
   }
@@ -336,7 +404,12 @@ async function loadLocales($: EngineInterface): Promise<Record<string, Partial<U
 
 // ---- Visibility state ----
 
-// Project directory from session.start; anchors the command trust gate.
+// Project directory from session.start; anchors the command trust gate. The
+// engine's render events carry no session identity, so a module anchor is the
+// only hook available: a session.start writes it, the renders of that session
+// read it. Interactive sessions are one per process and a wrong anchor fails
+// closed (the gate degrades the button to a prompt), so the residual exposure
+// is two live sessions with different projects inside a single process.
 let projectCwd: string | undefined
 
 // Renders reading the atom are subscribed and redraw on writes by themselves.
